@@ -31,7 +31,7 @@ import com.google.inject.testing.fieldbinder.BoundFieldModule;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
-import net.runelite.api.ItemComposition;
+import net.runelite.api.ItemDefinition;
 import net.runelite.api.ItemID;
 import net.runelite.client.game.ItemManager;
 import static org.junit.Assert.assertNotNull;
@@ -76,10 +76,10 @@ public class ContainerCalculationTest
 			whip
 		).toArray(new Item[0]);
 
-		ItemComposition whipComp = mock(ItemComposition.class);
+		ItemDefinition whipComp = mock(ItemDefinition.class);
 		when(whipComp.getPrice())
 			.thenReturn(7); // 7 * .6 = 4, 4 * 1m overflows
-		when(itemManager.getItemComposition(ItemID.ABYSSAL_WHIP))
+		when(itemManager.getItemDefinition(ItemID.ABYSSAL_WHIP))
 			.thenReturn(whipComp);
 		when(itemManager.getItemPrice(ItemID.ABYSSAL_WHIP))
 			.thenReturn(3); // 1b * 3 overflows

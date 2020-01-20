@@ -27,6 +27,7 @@
 package net.runelite.client.plugins.bank;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multiset;
@@ -37,37 +38,50 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import javax.inject.Singleton;
+import lombok.AccessLevel;
+import lombok.Getter;
 import net.runelite.api.Client;
 import static net.runelite.api.Constants.HIGH_ALCHEMY_MULTIPLIER;
+import net.runelite.api.FontID;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
-import net.runelite.api.ItemComposition;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.ItemDefinition;
 import net.runelite.api.ItemID;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.SpriteID;
+import net.runelite.api.VarClientInt;
+import net.runelite.api.VarClientStr;
 import net.runelite.api.Varbits;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuShouldLeftClick;
 import net.runelite.api.events.ScriptCallbackEvent;
+import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.vars.InputType;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetID;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.plugins.banktags.tabs.BankSearch;
 import net.runelite.client.util.QuantityFormatter;
 
 @PluginDescriptor(
 	name = "Bank",
 	description = "Modifications to the banking interface",
-	tags = {"grand", "exchange", "high", "alchemy", "prices", "deposit"}
+	tags = {"grand", "exchange", "high", "alchemy", "prices", "deposit"},
+	type = PluginType.UTILITY
 )
+@Singleton
 public class BankPlugin extends Plugin
 {
 	private static final List<Varbits> TAB_VARBITS = ImmutableList.of(
@@ -82,10 +96,30 @@ public class BankPlugin extends Plugin
 		Varbits.BANK_TAB_NINE_COUNT
 	);
 
+	private static final List<WidgetInfo> BANK_PINS = ImmutableList.of(
+		WidgetInfo.BANK_PIN_1,
+		WidgetInfo.BANK_PIN_2,
+		WidgetInfo.BANK_PIN_3,
+		WidgetInfo.BANK_PIN_4,
+		WidgetInfo.BANK_PIN_5,
+		WidgetInfo.BANK_PIN_6,
+		WidgetInfo.BANK_PIN_7,
+		WidgetInfo.BANK_PIN_8,
+		WidgetInfo.BANK_PIN_9,
+		WidgetInfo.BANK_PIN_10
+	);
+
 	private static final String DEPOSIT_WORN = "Deposit worn items";
 	private static final String DEPOSIT_INVENTORY = "Deposit inventory";
 	private static final String DEPOSIT_LOOT = "Deposit loot";
+	private static final String DISABLE = "Disable";
+	private static final String ENABLE = "Enable";
+	private static final String RELEASE_ALL_PLACEHOLDERS = "Release all placeholders";
+	private static final String SEARCH = "Search";
+	private static final String FILL = "Fill";
+
 	private static final String SEED_VAULT_TITLE = "Seed Vault";
+	private static final int PIN_FONT_OFFSET = 5;
 
 	private static final String NUMBER_REGEX = "[0-9]+(\\.[0-9]+)?[kmb]?";
 	private static final Pattern VALUE_SEARCH_PATTERN = Pattern.compile("^(?<mode>ge|ha|alch)?" +
@@ -114,12 +148,34 @@ public class BankPlugin extends Plugin
 	private ContainerCalculation seedVaultCalculation;
 
 	private boolean forceRightClickFlag;
+	private boolean largePinNumbers;
 	private Multiset<Integer> itemQuantities; // bank item quantities for bank value search
+	private String searchString;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showGE;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showHA;
+	private boolean showExact;
+	private boolean rightClickBankInventory;
+	private boolean rightClickBankEquip;
+	private boolean rightClickBankLoot;
+	private boolean seedVaultValue;
+	private boolean rightClickSetPlaceholders;
+	private boolean rightClickReleasePlaceholders;
+	private boolean rightClickSearch;
+	private boolean rightClickFillBankFiller;
 
 	@Provides
 	BankConfig getConfig(ConfigManager configManager)
 	{
 		return configManager.getConfig(BankConfig.class);
+	}
+
+	@Override
+	protected void startUp()
+	{
+		updateConfig();
+		searchString = "";
 	}
 
 	@Override
@@ -131,7 +187,7 @@ public class BankPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onMenuShouldLeftClick(MenuShouldLeftClick event)
+	private void onMenuShouldLeftClick(MenuShouldLeftClick event)
 	{
 		if (!forceRightClickFlag)
 		{
@@ -142,9 +198,14 @@ public class BankPlugin extends Plugin
 		MenuEntry[] menuEntries = client.getMenuEntries();
 		for (MenuEntry entry : menuEntries)
 		{
-			if ((entry.getOption().equals(DEPOSIT_WORN) && config.rightClickBankEquip())
-				|| (entry.getOption().equals(DEPOSIT_INVENTORY) && config.rightClickBankInventory())
-				|| (entry.getOption().equals(DEPOSIT_LOOT) && config.rightClickBankLoot()))
+			if ((entry.getOption().equals(DEPOSIT_WORN) && this.rightClickBankEquip)
+				|| (entry.getOption().equals(DEPOSIT_INVENTORY) && this.rightClickBankInventory)
+				|| (entry.getOption().equals(DEPOSIT_LOOT) && this.rightClickBankLoot)
+				|| (entry.getOption().equals(DISABLE) && this.rightClickSetPlaceholders)
+				|| (entry.getOption().equals(ENABLE) && this.rightClickSetPlaceholders)
+				|| (entry.getOption().equals(RELEASE_ALL_PLACEHOLDERS) && this.rightClickReleasePlaceholders)
+				|| (entry.getOption().equals(SEARCH) && this.rightClickSearch)
+				|| (entry.getOption().equals(FILL) && this.rightClickFillBankFiller))
 			{
 				event.setForceRightClick(true);
 				return;
@@ -153,19 +214,34 @@ public class BankPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onMenuEntryAdded(MenuEntryAdded event)
+	private void onMenuEntryAdded(MenuEntryAdded event)
 	{
-		if ((event.getOption().equals(DEPOSIT_WORN) && config.rightClickBankEquip())
-			|| (event.getOption().equals(DEPOSIT_INVENTORY) && config.rightClickBankInventory())
-			|| (event.getOption().equals(DEPOSIT_LOOT) && config.rightClickBankLoot()))
+		if ((event.getOption().equals(DEPOSIT_WORN) && this.rightClickBankEquip)
+			|| (event.getOption().equals(DEPOSIT_INVENTORY) && this.rightClickBankInventory)
+			|| (event.getOption().equals(DEPOSIT_LOOT) && this.rightClickBankLoot)
+			|| (event.getOption().startsWith(DISABLE) && this.rightClickSetPlaceholders)
+			|| (event.getOption().startsWith(ENABLE) && this.rightClickSetPlaceholders)
+			|| (event.getOption().equals(RELEASE_ALL_PLACEHOLDERS) && this.rightClickReleasePlaceholders)
+			|| (event.getOption().equals(SEARCH) && this.rightClickSearch)
+			|| (event.getOption().equals(FILL) && this.rightClickFillBankFiller))
 		{
 			forceRightClickFlag = true;
 		}
 	}
 
 	@Subscribe
-	public void onScriptCallbackEvent(ScriptCallbackEvent event)
+	private void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
+		if (event.getEventName().equals("bankPinButtons") && this.largePinNumbers)
+		{
+			updateBankPinSizes();
+		}
+
+		if (!event.getEventName().equals("setBankTitle"))
+		{
+			return;
+		}
+
 		int[] intStack = client.getIntStack();
 		String[] stringStack = client.getStringStack();
 		int intStackSize = client.getIntStackSize();
@@ -199,14 +275,42 @@ public class BankPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onWidgetLoaded(WidgetLoaded event)
+	private void onWidgetLoaded(WidgetLoaded event)
 	{
-		if (event.getGroupId() != WidgetID.SEED_VAULT_GROUP_ID || !config.seedVaultValue())
+		if (event.getGroupId() != WidgetID.SEED_VAULT_GROUP_ID || !this.seedVaultValue)
 		{
 			return;
 		}
 
 		updateSeedVaultTotal();
+	}
+
+	@Subscribe
+	public void onVarClientStrChanged(VarClientStrChanged event)
+	{
+		String searchVar = client.getVar(VarClientStr.INPUT_TEXT);
+
+		if (!searchVar.equals(searchString))
+		{
+			Widget searchButtonBackground = client.getWidget(WidgetInfo.BANK_SEARCH_BUTTON_BACKGROUND);
+			if (searchButtonBackground != null && searchButtonBackground.hasListener())
+			{
+				searchButtonBackground.setOnTimerListener((Object[]) null);
+				searchButtonBackground.setHasListener(false);
+			}
+
+			clientThread.invokeLater(() -> bankSearch.layoutBank());
+			searchString = searchVar;
+		}
+
+		if (client.getVar(VarClientInt.INPUT_TYPE) != InputType.SEARCH.getType() && Strings.isNullOrEmpty(client.getVar(VarClientStr.INPUT_TEXT)))
+		{
+			Widget searchBackground = client.getWidget(WidgetInfo.BANK_SEARCH_BUTTON_BACKGROUND);
+			if (searchBackground != null)
+			{
+				searchBackground.setSpriteId(SpriteID.EQUIPMENT_SLOT_TILE);
+			}
+		}
 	}
 
 	@Subscribe
@@ -218,7 +322,7 @@ public class BankPlugin extends Plugin
 		{
 			itemQuantities = null;
 		}
-		else if (containerId == InventoryID.SEED_VAULT.getId() && config.seedVaultValue())
+		else if (containerId == InventoryID.SEED_VAULT.getId() && this.seedVaultValue)
 		{
 			updateSeedVaultTotal();
 		}
@@ -230,16 +334,16 @@ public class BankPlugin extends Plugin
 		final long haPrice = prices.getHighAlchPrice();
 
 		String strCurrentTab = "";
-		if (config.showGE() && gePrice != 0)
+		if (this.showGE && gePrice != 0)
 		{
 			strCurrentTab += " (";
 
-			if (config.showHA())
+			if (this.showHA)
 			{
 				strCurrentTab += "EX: ";
 			}
 
-			if (config.showExact())
+			if (this.showExact)
 			{
 				strCurrentTab += QuantityFormatter.formatNumber(gePrice) + ")";
 			}
@@ -249,16 +353,16 @@ public class BankPlugin extends Plugin
 			}
 		}
 
-		if (config.showHA() && haPrice != 0)
+		if (this.showHA && haPrice != 0)
 		{
 			strCurrentTab += " (";
 
-			if (config.showGE())
+			if (this.showGE)
 			{
 				strCurrentTab += "HA: ";
 			}
 
-			if (config.showExact())
+			if (this.showExact)
 			{
 				strCurrentTab += QuantityFormatter.formatNumber(haPrice) + ")";
 			}
@@ -335,6 +439,66 @@ public class BankPlugin extends Plugin
 		return itemContainer.getItems();
 	}
 
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("bank"))
+		{
+			return;
+		}
+
+		updateConfig();
+	}
+
+	private void updateBankPinSizes()
+	{
+		for (final WidgetInfo widgetInfo : BANK_PINS)
+		{
+			final Widget pin = client.getWidget(widgetInfo);
+			if (pin == null)
+			{
+				continue;
+			}
+
+			final Widget[] children = pin.getDynamicChildren();
+			if (children.length < 2)
+			{
+				continue;
+			}
+
+			final Widget button = children[0];
+			final Widget number = children[1];
+
+			// Change to a bigger font size
+			number.setFontId(FontID.QUILL_CAPS_LARGE);
+			number.setYTextAlignment(0);
+
+			// Change size to match container widths
+			number.setOriginalWidth(button.getWidth());
+			// The large font id text isn't centered, we need to offset it slightly
+			number.setOriginalHeight(button.getHeight() + PIN_FONT_OFFSET);
+			number.setOriginalY(-PIN_FONT_OFFSET);
+			number.setOriginalX(0);
+
+			number.revalidate();
+		}
+	}
+
+	private void updateConfig()
+	{
+		this.showGE = config.showGE();
+		this.showHA = config.showHA();
+		this.largePinNumbers = config.largePinNumbers();
+		this.showExact = config.showExact();
+		this.rightClickBankInventory = config.rightClickBankInventory();
+		this.rightClickBankEquip = config.rightClickBankEquip();
+		this.rightClickBankLoot = config.rightClickBankLoot();
+		this.seedVaultValue = config.seedVaultValue();
+		this.rightClickSetPlaceholders = config.rightClickSetPlaceholders();
+		this.rightClickReleasePlaceholders = config.rightClickReleasePlaceholders();
+		this.rightClickSearch = config.rightClickSearch();
+		this.rightClickFillBankFiller = config.rightClickFillBankFiller();
+	}
 
 	@VisibleForTesting
 	boolean valueSearch(final int itemId, final String str)
@@ -351,7 +515,7 @@ public class BankPlugin extends Plugin
 			itemQuantities = getBankItemSet();
 		}
 
-		final ItemComposition itemComposition = itemManager.getItemComposition(itemId);
+		final ItemDefinition itemComposition = itemManager.getItemDefinition(itemId);
 		long gePrice = (long) itemManager.getItemPrice(itemId) * (long) itemQuantities.count(itemId);
 		long haPrice = (long) (itemComposition.getPrice() * HIGH_ALCHEMY_MULTIPLIER) * (long) itemQuantities.count(itemId);
 

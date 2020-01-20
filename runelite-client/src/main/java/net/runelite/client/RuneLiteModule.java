@@ -41,6 +41,7 @@ import net.runelite.client.callback.Hooks;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ChatColorConfig;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.game.ItemManager;
@@ -62,7 +63,7 @@ public class RuneLiteModule extends AbstractModule
 	private final Supplier<Applet> clientLoader;
 	private final boolean developerMode;
 
-	public RuneLiteModule(Supplier<Applet> clientLoader, boolean developerMode)
+	public RuneLiteModule(final Supplier<Applet> clientLoader, boolean developerMode)
 	{
 		this.clientLoader = clientLoader;
 		this.developerMode = developerMode;
@@ -116,6 +117,13 @@ public class RuneLiteModule extends AbstractModule
 	RuneLiteConfig provideConfig(ConfigManager configManager)
 	{
 		return configManager.getConfig(RuneLiteConfig.class);
+	}
+
+	@Provides
+	@Singleton
+	OpenOSRSConfig providePlusConfig(ConfigManager configManager)
+	{
+		return configManager.getConfig(OpenOSRSConfig.class);
 	}
 
 	@Provides

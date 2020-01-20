@@ -25,23 +25,27 @@
 package net.runelite.client.plugins.xpglobes;
 
 import com.google.inject.Provides;
+import java.awt.Color;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import javax.inject.Inject;
+import javax.inject.Singleton;
+import lombok.AccessLevel;
 import lombok.Getter;
-import net.runelite.api.Client;
 import net.runelite.api.Experience;
 import net.runelite.api.Skill;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.StatChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.plugins.xptracker.XpTrackerPlugin;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -50,8 +54,10 @@ import net.runelite.client.ui.overlay.OverlayManager;
 	name = "XP Globes",
 	description = "Show XP globes for the respective skill when gaining XP",
 	tags = {"experience", "levels", "overlay"},
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.UTILITY
 )
+@Singleton
 @PluginDependency(XpTrackerPlugin.class)
 public class XpGlobesPlugin extends Plugin
 {
@@ -63,9 +69,6 @@ public class XpGlobesPlugin extends Plugin
 	private final List<XpGlobe> xpGlobes = new ArrayList<>();
 
 	@Inject
-	private Client client;
-
-	@Inject
 	private XpGlobesConfig config;
 
 	@Inject
@@ -74,6 +77,31 @@ public class XpGlobesPlugin extends Plugin
 	@Inject
 	private XpGlobesOverlay overlay;
 
+	@Getter(AccessLevel.PACKAGE)
+	private boolean enableTooltips;
+	private boolean hideMaxed;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean enableTimeToLevel;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showXpHour;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showActionsLeft;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showXpLeft;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean enableCustomArcColor;
+	@Getter(AccessLevel.PACKAGE)
+	private Color progressArcColor;
+	@Getter(AccessLevel.PACKAGE)
+	private Color progressOrbOutLineColor;
+	@Getter(AccessLevel.PACKAGE)
+	private Color progressOrbBackgroundColor;
+	@Getter(AccessLevel.PACKAGE)
+	private int progressArcStrokeWidth;
+	@Getter(AccessLevel.PACKAGE)
+	private int xpOrbSize;
+	private int xpOrbDuration;
+
 	@Provides
 	XpGlobesConfig getConfig(ConfigManager configManager)
 	{
@@ -81,19 +109,21 @@ public class XpGlobesPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+		updateConfig();
+
 		overlayManager.add(overlay);
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		overlayManager.remove(overlay);
 	}
 
 	@Subscribe
-	public void onStatChanged(StatChanged statChanged)
+	private void onStatChanged(StatChanged statChanged)
 	{
 		Skill skill = statChanged.getSkill();
 		int currentXp = statChanged.getXp();
@@ -107,7 +137,7 @@ public class XpGlobesPlugin extends Plugin
 			return;
 		}
 
-		if (config.hideMaxed() && currentLevel >= Experience.MAX_REAL_LEVEL)
+		if (this.hideMaxed && currentLevel >= Experience.MAX_REAL_LEVEL)
 		{
 			return;
 		}
@@ -152,11 +182,11 @@ public class XpGlobesPlugin extends Plugin
 		if (!xpGlobes.isEmpty())
 		{
 			Instant currentTime = Instant.now();
-			for (Iterator<XpGlobe> it = xpGlobes.iterator(); it.hasNext();)
+			for (Iterator<XpGlobe> it = xpGlobes.iterator(); it.hasNext(); )
 			{
 				XpGlobe globe = it.next();
 				Instant globeCreationTime = globe.getTime();
-				if (currentTime.isBefore(globeCreationTime.plusSeconds(config.xpOrbDuration())))
+				if (currentTime.isBefore(globeCreationTime.plusSeconds(this.xpOrbDuration)))
 				{
 					//if a globe is not expired, stop checking newer globes
 					return;
@@ -173,7 +203,7 @@ public class XpGlobesPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged event)
+	private void onGameStateChanged(GameStateChanged event)
 	{
 		switch (event.getGameState())
 		{
@@ -184,4 +214,32 @@ public class XpGlobesPlugin extends Plugin
 		}
 	}
 
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("xpglobes"))
+		{
+			return;
+		}
+
+		updateConfig();
+	}
+
+	private void updateConfig()
+	{
+		this.enableTooltips = config.enableTooltips();
+		this.hideMaxed = config.hideMaxed();
+		this.enableTimeToLevel = config.enableTimeToLevel();
+		this.enableCustomArcColor = config.enableCustomArcColor();
+		this.progressArcColor = config.progressArcColor();
+		this.progressOrbOutLineColor = config.progressOrbOutLineColor();
+		this.progressOrbBackgroundColor = config.progressOrbBackgroundColor();
+		this.progressArcStrokeWidth = config.progressArcStrokeWidth();
+		this.xpOrbSize = config.xpOrbSize();
+		this.xpOrbDuration = config.xpOrbDuration();
+		this.showXpLeft = config.showXpLeft();
+		this.showActionsLeft = config.showActionsLeft();
+		this.showXpHour = config.showXpHour();
+
+	}
 }

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018, Raqes <j.raqes@gmail.com>
+ * Copyright (c) 2018, https://openosrs.com
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,6 +29,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
 import net.runelite.api.EquipmentInventorySlot;
@@ -36,7 +38,7 @@ import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.NPC;
-import net.runelite.api.NPCComposition;
+import net.runelite.api.NPCDefinition;
 import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.VarPlayer;
@@ -46,22 +48,29 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.VarbitChanged;
+import net.runelite.api.widgets.WidgetInfo;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
 import net.runelite.client.ws.PartyService;
 import net.runelite.client.ws.WSClient;
 import org.apache.commons.lang3.ArrayUtils;
+import lombok.extern.slf4j.Slf4j;
 
 @PluginDescriptor(
 	name = "Special Attack Counter",
 	description = "Track DWH, Arclight, Darklight, and BGS special attacks used on NPCs",
 	tags = {"combat", "npcs", "overlay"},
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.UTILITY
 )
+@Singleton
+@Slf4j
 public class SpecialCounterPlugin extends Plugin
 {
 	private int currentWorld = -1;
@@ -96,6 +105,7 @@ public class SpecialCounterPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+
 		wsClient.registerMessage(SpecialCounterUpdate.class);
 	}
 
@@ -107,7 +117,7 @@ public class SpecialCounterPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged event)
+	private void onGameStateChanged(GameStateChanged event)
 	{
 		if (event.getGameState() == GameState.LOGGED_IN)
 		{
@@ -124,7 +134,7 @@ public class SpecialCounterPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onVarbitChanged(VarbitChanged event)
+	private void onVarbitChanged(VarbitChanged event)
 	{
 		int specialPercentage = client.getVar(VarPlayer.SPECIAL_ATTACK_PERCENT);
 
@@ -145,7 +155,7 @@ public class SpecialCounterPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onStatChanged(StatChanged statChanged)
+	private void onStatChanged(StatChanged statChanged)
 	{
 		if (specialUsed && statChanged.getSkill() == Skill.HITPOINTS)
 		{
@@ -154,7 +164,7 @@ public class SpecialCounterPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onFakeXpDrop(FakeXpDrop fakeXpDrop)
+	private void onFakeXpDrop(FakeXpDrop fakeXpDrop)
 	{
 		if (specialUsed && fakeXpDrop.getSkill() == Skill.HITPOINTS)
 		{
@@ -177,20 +187,17 @@ public class SpecialCounterPlugin extends Plugin
 
 			specialUsed = false;
 
-			if (deltaExperience > 0)
+			if (deltaExperience > 0 && specialWeapon != null)
 			{
-				if (specialWeapon != null)
+				int hit = getHit(specialWeapon, deltaExperience);
+
+				updateCounter(specialWeapon, null, hit);
+
+				if (!party.getMembers().isEmpty())
 				{
-					int hit = getHit(specialWeapon, deltaExperience);
-
-					updateCounter(specialWeapon, null, hit);
-
-					if (!party.getMembers().isEmpty())
-					{
-						final SpecialCounterUpdate specialCounterUpdate = new SpecialCounterUpdate(interactingId, specialWeapon, hit);
-						specialCounterUpdate.setMemberId(party.getLocalMember().getMemberId());
-						wsClient.send(specialCounterUpdate);
-					}
+					final SpecialCounterUpdate specialCounterUpdate = new SpecialCounterUpdate(interactingId, specialWeapon, hit);
+					specialCounterUpdate.setMemberId(party.getLocalMember().getMemberId());
+					wsClient.send(specialCounterUpdate);
 				}
 			}
 		}
@@ -204,7 +211,7 @@ public class SpecialCounterPlugin extends Plugin
 		if (interacting instanceof NPC)
 		{
 			NPC npc = (NPC) interacting;
-			NPCComposition composition = npc.getComposition();
+			NPCDefinition composition = npc.getDefinition();
 			int interactingId = npc.getId();
 
 			if (!ArrayUtils.contains(composition.getActions(), "Attack"))
@@ -231,6 +238,61 @@ public class SpecialCounterPlugin extends Plugin
 		modifier = 1d;
 		interactedNpcIds.add(npcId);
 
+		if (client.getWidget(WidgetInfo.THEATRE_OF_BLOOD_PARTY) != null)
+		{
+			Boss boss = Boss.getBoss(npcId);
+			if (boss != null)
+			{
+				int teamSize = 0;
+				Widget x = client.getWidget(WidgetInfo.THEATRE_OF_BLOOD_PARTY);
+				for (Widget y : x.getStaticChildren())
+				{
+					if (!y.isHidden())
+					{
+						teamSize++;
+					}
+				}
+				if (boss == Boss.SOTETSEG_5_MAN)
+				{
+					if (teamSize > 0 && teamSize <= 3)
+					{
+						boss = Boss.SOTETSEG_3_MAN;
+					}
+					else if (teamSize == 4)
+					{
+						boss = Boss.SOTETSEG_4_MAN;
+					}
+
+				}
+				if (boss == Boss.NYLOCAS_VASILIAS_5_MAN)
+				{
+					if (teamSize > 0 && teamSize <= 3)
+					{
+						boss = Boss.NYLOCAS_VASILIAS_3_MAN;
+					}
+					else if (teamSize == 4)
+					{
+						boss = Boss.NYLOCAS_VASILIAS_4_MAN;
+					}
+
+				}
+				if (boss == Boss.PESTILENT_BLOAT_5_MAN)
+				{
+					if (teamSize > 0 && teamSize <= 3)
+					{
+						boss = Boss.PESTILENT_BLOAT_3_MAN;
+					}
+					else if (teamSize == 4)
+					{
+						boss = Boss.PESTILENT_BLOAT_4_MAN;
+					}
+
+				}
+				modifier = boss.getModifier();
+				interactedNpcIds.addAll(boss.getIds());
+			}
+			return;
+		}
 		// Add alternate forms of bosses
 		final Boss boss = Boss.getBoss(npcId);
 		if (boss != null)
@@ -241,7 +303,7 @@ public class SpecialCounterPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onNpcDespawned(NpcDespawned npcDespawned)
+	private void onNpcDespawned(NpcDespawned npcDespawned)
 	{
 		NPC actor = npcDespawned.getNpc();
 
@@ -252,7 +314,7 @@ public class SpecialCounterPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onSpecialCounterUpdate(SpecialCounterUpdate event)
+	private void onSpecialCounterUpdate(SpecialCounterUpdate event)
 	{
 		if (party.getLocalMember().getMemberId().equals(event.getMemberId()))
 		{

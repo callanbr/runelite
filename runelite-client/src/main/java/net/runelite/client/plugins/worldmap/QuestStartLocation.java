@@ -25,9 +25,10 @@
  */
 package net.runelite.client.plugins.worldmap;
 
+import lombok.AccessLevel;
 import lombok.Getter;
-import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.Quest;
+import net.runelite.api.coords.WorldPoint;
 
 // Some quests are in the same spot, but they are done in order. If multiple
 // quests start in the same location, an array of quests is expected.
@@ -123,8 +124,8 @@ enum QuestStartLocation
 	MAKING_HISTORY(Quest.MAKING_HISTORY, new WorldPoint(2435, 3346, 0)),
 	MONKS_FRIEND(Quest.MONKS_FRIEND, new WorldPoint(2605, 3209, 0)),
 	MOUNTAIN_DAUGHTER(Quest.MOUNTAIN_DAUGHTER, new WorldPoint(2810, 3672, 0)),
-	MOURNINGS_ENDS_PART_I(Quest.MOURNINGS_END_PART_I, new WorldPoint(2289, 3149, 0)),
-	MOURNINGS_ENDS_PART_II(Quest.MOURNINGS_END_PART_II, new WorldPoint(2352, 3172, 0)),
+	MOURNINGS_END_PART_I(Quest.MOURNINGS_END_PART_I, new WorldPoint(2289, 3149, 0)),
+	MOURNINGS_END_PART_II(Quest.MOURNINGS_END_PART_II, new WorldPoint(2352, 3172, 0)),
 	MURDER_MYSTERY(Quest.MURDER_MYSTERY, new WorldPoint(2740, 3562, 0)),
 	MY_ARMS_BIG_ADVENTURE(Quest.MY_ARMS_BIG_ADVENTURE, new WorldPoint(2908, 10088, 0)),
 	NATURE_SPIRIT(Quest.NATURE_SPIRIT, new WorldPoint(3440, 9894, 0)),
@@ -167,10 +168,10 @@ enum QuestStartLocation
 	WITCHS_HOUSE(Quest.WITCHS_HOUSE, new WorldPoint(2927, 3456, 0)),
 	ZOGRE_FLESH_EATERS(Quest.ZOGRE_FLESH_EATERS, new WorldPoint(2442, 3051, 0));
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final WorldPoint location;
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final Quest[] quests;
 
 	QuestStartLocation(Quest[] quests, WorldPoint location)

@@ -33,6 +33,7 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.WorldType;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.ui.overlay.infobox.InfoBox;
@@ -77,6 +78,10 @@ public class TimersPluginTest
 	@Bind
 	private InfoBoxManager infoBoxManager;
 
+	@Mock
+	@Bind
+	private OpenOSRSConfig openOSRSConfig;
+
 	@Before
 	public void before()
 	{
@@ -86,7 +91,7 @@ public class TimersPluginTest
 	@Test
 	public void testHalfTeleblock()
 	{
-		when(timersConfig.showTeleblock()).thenReturn(true);
+		timersPlugin.setShowTeleblock(true);
 		when(client.getWorldType()).thenReturn(EnumSet.of(WorldType.MEMBERS));
 		ChatMessage chatMessage = new ChatMessage(null, ChatMessageType.SPAM, "", HALF_TELEBLOCK_MESSAGE, "", 0);
 		timersPlugin.onChatMessage(chatMessage);
@@ -100,7 +105,7 @@ public class TimersPluginTest
 	@Test
 	public void testFullTeleblock()
 	{
-		when(timersConfig.showTeleblock()).thenReturn(true);
+		timersPlugin.setShowTeleblock(true);
 		ChatMessage chatMessage = new ChatMessage(null, ChatMessageType.SPAM, "", FULL_TELEBLOCK_MESSAGE, "", 0);
 		timersPlugin.onChatMessage(chatMessage);
 
@@ -113,7 +118,7 @@ public class TimersPluginTest
 	@Test
 	public void testDmmHalfTb()
 	{
-		when(timersConfig.showTeleblock()).thenReturn(true);
+		timersPlugin.setShowTeleblock(true);
 		ChatMessage chatMessage = new ChatMessage(null, ChatMessageType.SPAM, "", DMM_HALF_TELEBLOCK_MESSAGE, "", 0);
 		timersPlugin.onChatMessage(chatMessage);
 
@@ -126,7 +131,7 @@ public class TimersPluginTest
 	@Test
 	public void testDmmFullTb()
 	{
-		when(timersConfig.showTeleblock()).thenReturn(true);
+		timersPlugin.setShowTeleblock(true);
 		when(client.getWorldType()).thenReturn(EnumSet.of(WorldType.DEADMAN));
 		ChatMessage chatMessage = new ChatMessage(null, ChatMessageType.SPAM, "", HALF_TELEBLOCK_MESSAGE, "", 0);
 		timersPlugin.onChatMessage(chatMessage);

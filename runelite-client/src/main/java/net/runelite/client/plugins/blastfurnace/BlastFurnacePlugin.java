@@ -29,6 +29,7 @@ import com.google.inject.Provides;
 import java.time.Duration;
 import java.time.Instant;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import lombok.AccessLevel;
 import lombok.Getter;
 import net.runelite.api.Client;
@@ -41,22 +42,26 @@ import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.util.Text;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
-import net.runelite.client.util.Text;
 
 @PluginDescriptor(
 	name = "Blast Furnace",
 	description = "Show helpful information for the Blast Furnace minigame",
-	tags = {"minigame", "overlay", "skilling", "smithing"}
+	tags = {"minigame", "overlay", "skilling", "smithing"},
+	type = PluginType.MINIGAME
 )
+@Singleton
 public class BlastFurnacePlugin extends Plugin
 {
 	private static final int BAR_DISPENSER = NULL_9092;
@@ -91,9 +96,19 @@ public class BlastFurnacePlugin extends Plugin
 	@Inject
 	private InfoBoxManager infoBoxManager;
 
+	@Inject
+	private BlastFurnaceConfig config;
+
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showConveyorBelt;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showBarDispenser;
+
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+		updateConfig();
+
 		overlayManager.add(overlay);
 		overlayManager.add(cofferOverlay);
 		overlayManager.add(clickBoxOverlay);
@@ -118,7 +133,16 @@ public class BlastFurnacePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameObjectSpawned(GameObjectSpawned event)
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (event.getGroup().equals("blastfurnace"))
+		{
+			updateConfig();
+		}
+	}
+
+	@Subscribe
+	private void onGameObjectSpawned(GameObjectSpawned event)
 	{
 		GameObject gameObject = event.getGameObject();
 
@@ -135,7 +159,7 @@ public class BlastFurnacePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameObjectDespawned(GameObjectDespawned event)
+	private void onGameObjectDespawned(GameObjectDespawned event)
 	{
 		GameObject gameObject = event.getGameObject();
 
@@ -152,7 +176,7 @@ public class BlastFurnacePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged event)
+	private void onGameStateChanged(GameStateChanged event)
 	{
 		if (event.getGameState() == GameState.LOADING)
 		{
@@ -162,7 +186,7 @@ public class BlastFurnacePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameTick(GameTick event)
+	private void onGameTick(GameTick event)
 	{
 		Widget npcDialog = client.getWidget(WidgetInfo.DIALOG_NPC_TEXT);
 		if (npcDialog == null)
@@ -186,5 +210,11 @@ public class BlastFurnacePlugin extends Plugin
 				infoBoxManager.addInfoBox(foremanTimer);
 			}
 		}
+	}
+
+	private void updateConfig()
+	{
+		this.showBarDispenser = config.showBarDispenser();
+		this.showConveyorBelt = config.showConveyorBelt();
 	}
 }

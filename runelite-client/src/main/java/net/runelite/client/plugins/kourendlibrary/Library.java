@@ -33,10 +33,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import javax.inject.Singleton;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.coords.WorldPoint;
-
 import static net.runelite.client.plugins.kourendlibrary.Book.*;
 
 /**
@@ -67,13 +67,13 @@ class Library
 
 	private final int step;
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private SolvedState state;
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private Book customerBook;
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private int customerId;
 
 	Library()
@@ -107,7 +107,7 @@ class Library
 			b.clearBook();
 			b.getPossibleBooks().clear();
 		}
-		log.info("Library is now reset");
+		log.debug("Library is now reset");
 	}
 
 	synchronized void mark(WorldPoint loc, Book book)
@@ -152,7 +152,7 @@ class Library
 			}
 		}
 
-		log.info("Setting bookcase {} to {}", bookcase.getIndex(), book);
+		log.debug("Setting bookcase {} to {}", bookcase.getIndex(), book);
 		for (; ; )
 		{
 			bookcase.setBook(book);
@@ -214,7 +214,7 @@ class Library
 				}
 				return found;
 			}).toArray();
-			log.info("Certainty is now {}", certainty);
+			log.debug("Certainty is now {}", certainty);
 
 			for (Bookcase b : byIndex)
 			{

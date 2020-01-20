@@ -31,7 +31,7 @@ import net.runelite.api.Skill;
  * An event where the experience, level, or boosted level of a {@link Skill} has been modified.
  */
 @Value
-public class StatChanged
+public class StatChanged implements Event
 {
 	private final Skill skill;
 	private final int xp;

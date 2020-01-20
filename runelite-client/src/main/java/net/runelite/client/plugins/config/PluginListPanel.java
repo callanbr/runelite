@@ -24,22 +24,37 @@
  */
 package net.runelite.client.plugins.config;
 
+import com.google.common.collect.ImmutableList;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.Insets;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
-import javax.swing.JButton;
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JToggleButton;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
@@ -47,83 +62,128 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.util.Text;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigDescriptor;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
-import net.runelite.client.events.ExternalPluginsChanged;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.PluginChanged;
-import net.runelite.client.externalplugins.ExternalPluginManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.PluginInstantiationException;
 import net.runelite.client.plugins.PluginManager;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.DynamicGridLayout;
+import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.MultiplexingPluginPanel;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.IconTextField;
-import net.runelite.client.util.Text;
+import net.runelite.client.ui.components.MinimumSizedPanel;
+import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.SwingUtil;
 
 @Slf4j
 @Singleton
-class PluginListPanel extends PluginPanel
+public class PluginListPanel extends PluginPanel
 {
+	private static final int OFFSET = 6;
+
+	private static final ImageIcon SECTION_EXPAND_ICON;
+	private static final ImageIcon SECTION_EXPAND_ICON_HOVER;
+	private static final ImageIcon SECTION_RETRACT_ICON;
+	private static final ImageIcon SECTION_RETRACT_ICON_HOVER;
+
 	private static final String RUNELITE_GROUP_NAME = RuneLiteConfig.class.getAnnotation(ConfigGroup.class).value();
 	private static final String PINNED_PLUGINS_CONFIG_KEY = "pinnedPlugins";
+
+	private static final List<String> colorOptions = Arrays.asList("enabledColors", "pvmColor", "pvpColor", "skillingColor", "utilityColor", "minigameColor", "miscellaneousColor", "gamemodeColor");
+	private static final ImmutableList<PluginType> definedOrder = ImmutableList.of(PluginType.IMPORTANT, PluginType.PVM, PluginType.SKILLING, PluginType.PVP, PluginType.UTILITY, PluginType.MINIGAME, PluginType.MISCELLANEOUS, PluginType.GAMEMODE, PluginType.EXTERNAL, PluginType.UNCATEGORIZED);
+	private static final Comparator<PluginListItem> categoryComparator = Comparator.comparing(plugin -> definedOrder.indexOf(plugin.getPluginType()));
 
 	private final ConfigManager configManager;
 	private final PluginManager pluginManager;
 	private final ScheduledExecutorService executorService;
 	private final Provider<ConfigPanel> configPanelProvider;
+	private final OpenOSRSConfig openOSRSConfig;
 	private final List<PluginConfigurationDescriptor> fakePlugins = new ArrayList<>();
 
 	@Getter
-	private final ExternalPluginManager externalPluginManager;
-
-	@Getter
 	private final MultiplexingPluginPanel muxer;
-
 	private final IconTextField searchBar;
 	private final JScrollPane scrollPane;
 	private final FixedWidthPanel mainPanel;
-	private List<PluginListItem> pluginList;
+	private final Set<JPanel> sectionsCopy = new HashSet<>();
+
+	public static List<PluginListItem> pluginList;
+
+	static
+	{
+		final BufferedImage backIcon = ImageUtil.getResourceStreamFromClass(ConfigPanel.class, "config_back_icon.png");
+		final BufferedImage orangeBackIcon = ImageUtil.fillImage(backIcon, ColorScheme.BRAND_BLUE);
+
+		final BufferedImage sectionRetractIcon = ImageUtil.rotateImage(orangeBackIcon, Math.PI * 1.5);
+		SECTION_RETRACT_ICON = new ImageIcon(sectionRetractIcon);
+		SECTION_RETRACT_ICON_HOVER = new ImageIcon(ImageUtil.alphaOffset(sectionRetractIcon, -100));
+
+		final BufferedImage sectionExpandIcon = ImageUtil.rotateImage(orangeBackIcon, Math.PI);
+		SECTION_EXPAND_ICON = new ImageIcon(sectionExpandIcon);
+		SECTION_EXPAND_ICON_HOVER = new ImageIcon(ImageUtil.alphaOffset(sectionExpandIcon, -100));
+	}
 
 	@Inject
 	public PluginListPanel(
 		ConfigManager configManager,
 		PluginManager pluginManager,
-		ExternalPluginManager externalPluginManager,
 		ScheduledExecutorService executorService,
-		EventBus eventBus,
 		Provider<ConfigPanel> configPanelProvider,
-		Provider<PluginHubPanel> pluginHubPanelProvider)
+		OpenOSRSConfig openOSRSConfig,
+		EventBus eventBus)
 	{
 		super(false);
 
 		this.configManager = configManager;
 		this.pluginManager = pluginManager;
-		this.externalPluginManager = externalPluginManager;
 		this.executorService = executorService;
 		this.configPanelProvider = configPanelProvider;
+		this.openOSRSConfig = openOSRSConfig;
 
-		muxer = new MultiplexingPluginPanel(this)
-		{
-			@Override
-			protected void onAdd(PluginPanel p)
+		eventBus.subscribe(ConfigChanged.class, this, ev -> {
+			if (!ev.getGroup().equals("openosrs"))
 			{
-				eventBus.register(p);
+				return;
 			}
 
-			@Override
-			protected void onRemove(PluginPanel p)
+			if (ev.getKey().equals("enableCategories") || ev.getKey().equals("pluginSortMode"))
 			{
-				eventBus.unregister(p);
+				rebuildPluginList();
 			}
-		};
+
+			if (ev.getKey().equals("pluginSortMode"))
+			{
+				sortPluginList(null);
+			}
+
+			if (colorOptions.stream().anyMatch(option -> option.equals(ev.getKey())))
+			{
+				pluginList.forEach(listItem ->
+				{
+					if (listItem.getPluginType() == PluginType.IMPORTANT)
+					{
+						return;
+					}
+
+					listItem.setColor(getColorByCategory(listItem.getPluginType()));
+				});
+			}
+		});
+
+		muxer = new MultiplexingPluginPanel(this);
 
 		searchBar = new IconTextField();
 		searchBar.setIcon(IconTextField.Icon.SEARCH);
@@ -165,15 +225,9 @@ class PluginListPanel extends PluginPanel
 		mainPanel.setLayout(new DynamicGridLayout(0, 1, 0, 5));
 		mainPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		JButton externalPluginButton = new JButton("Plugin Hub");
-		externalPluginButton.setBorder(new EmptyBorder(5, 5, 5, 5));
-		externalPluginButton.setLayout(new BorderLayout(0, BORDER_OFFSET));
-		externalPluginButton.addActionListener(l -> muxer.pushState(pluginHubPanelProvider.get()));
-
 		JPanel northPanel = new FixedWidthPanel();
 		northPanel.setLayout(new BorderLayout());
 		northPanel.add(mainPanel, BorderLayout.NORTH);
-		northPanel.add(externalPluginButton, BorderLayout.SOUTH);
 
 		scrollPane = new JScrollPane(northPanel);
 		scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
@@ -198,6 +252,7 @@ class PluginListPanel extends PluginPanel
 					return new PluginConfigurationDescriptor(
 						descriptor.name(),
 						descriptor.description(),
+						descriptor.type(),
 						descriptor.tags(),
 						plugin,
 						config,
@@ -207,10 +262,12 @@ class PluginListPanel extends PluginPanel
 		{
 			PluginListItem listItem = new PluginListItem(this, desc);
 			listItem.setPinned(pinnedPlugins.contains(desc.getName()));
+			listItem.setColor(getColorByCategory(listItem.getPluginType()));
+
 			return listItem;
 		}).collect(Collectors.toList());
 
-		pluginList.sort(Comparator.comparing(p -> p.getPluginConfig().getName()));
+		sortPluginList(null);
 		mainPanel.removeAll();
 		refresh();
 	}
@@ -241,18 +298,14 @@ class PluginListPanel extends PluginPanel
 		scrollPane.getVerticalScrollBar().setValue(scrollBarPosition);
 	}
 
-	void openWithFilter(String filter)
-	{
-		searchBar.setText(filter);
-		onSearchBarChanged();
-		muxer.pushState(this);
-	}
-
 	private void onSearchBarChanged()
 	{
 		final String text = searchBar.getText();
 
 		pluginList.forEach(mainPanel::remove);
+
+		sectionsCopy.forEach(mainPanel::remove);
+		sectionsCopy.clear();
 
 		showMatchingPlugins(true, text);
 		showMatchingPlugins(false, text);
@@ -260,22 +313,87 @@ class PluginListPanel extends PluginPanel
 		revalidate();
 	}
 
-	private void showMatchingPlugins(boolean pinned, String text)
+	private void generatePluginList(List<PluginListItem> pluginListItems)
 	{
-		if (text.isEmpty())
+		final Map<String, JPanel> sections = new HashMap<>();
+
+		for (PluginListItem pluginListItem : pluginListItems)
 		{
-			pluginList.stream().filter(item -> pinned == item.isPinned()).forEach(mainPanel::add);
-			return;
+			if (pluginListItem.isPinned())
+			{
+				if (!sections.containsKey("Pinned"))
+				{
+					sections.put("Pinned", addSection("Pinned"));
+				}
+
+				sections.get("Pinned").add(pluginListItem);
+				continue;
+			}
+
+			String sectionName = pluginListItem.getPluginConfig().getPluginType().getName();
+
+			if (!sections.containsKey(sectionName))
+			{
+				sections.put(sectionName, addSection(sectionName));
+			}
+
+			sections.get(sectionName).add(pluginListItem);
 		}
 
-		final String[] searchTerms = text.toLowerCase().split(" ");
-		pluginList.forEach(listItem ->
+		sections.forEach((key, value) ->
 		{
-			if (pinned == listItem.isPinned() && listItem.matchesSearchTerms(searchTerms))
+			Container parent = value.getParent();
+			JToggleButton collapseButton = (JToggleButton) ((JPanel) parent.getComponent(0)).getComponent(0);
+
+			if (searchBar.getText().equals(""))
 			{
-				mainPanel.add(listItem);
+				resetSection(key, collapseButton, value);
+			}
+			else
+			{
+				forceExpandSection(collapseButton, value);
 			}
 		});
+	}
+
+	private void showMatchingPlugins(boolean pinned, String text)
+	{
+		final List<PluginListItem> plugins = new ArrayList<>();
+
+		if (text.isEmpty())
+		{
+			if (openOSRSConfig.pluginSortMode() == net.runelite.client.config.OpenOSRSConfig.SortStyle.ALPHABETICALLY || !openOSRSConfig.enableCategories())
+			{
+				pluginList.stream().filter(item -> pinned == item.isPinned()).forEach(mainPanel::add);
+			}
+			else
+			{
+				pluginList.stream().filter(item -> pinned == item.isPinned()).forEach(plugins::add);
+			}
+		}
+		else
+		{
+			final String[] searchTerms = text.toLowerCase().split(" ");
+			pluginList.forEach(listItem ->
+			{
+				if (pinned == listItem.isPinned() && listItem.matchesSearchTerms(searchTerms))
+				{
+					if (openOSRSConfig.pluginSortMode() == net.runelite.client.config.OpenOSRSConfig.SortStyle.ALPHABETICALLY || !openOSRSConfig.enableCategories())
+					{
+						mainPanel.add(listItem);
+					}
+					else
+					{
+						plugins.add(listItem);
+					}
+				}
+			});
+		}
+
+		if (openOSRSConfig.pluginSortMode() == net.runelite.client.config.OpenOSRSConfig.SortStyle.CATEGORY && openOSRSConfig.enableCategories())
+		{
+			generatePluginList(plugins);
+		}
 	}
 
 	void openConfigurationPanel(String configGroup)
@@ -283,18 +401,6 @@ class PluginListPanel extends PluginPanel
 		for (PluginListItem pluginListItem : pluginList)
 		{
 			if (pluginListItem.getPluginConfig().getName().equals(configGroup))
-			{
-				openConfigurationPanel(pluginListItem.getPluginConfig());
-				break;
-			}
-		}
-	}
-
-	void openConfigurationPanel(Plugin plugin)
-	{
-		for (PluginListItem pluginListItem : pluginList)
-		{
-			if (pluginListItem.getPluginConfig().getPlugin() == plugin)
 			{
 				openConfigurationPanel(pluginListItem.getPluginConfig());
 				break;
@@ -388,9 +494,160 @@ class PluginListPanel extends PluginPanel
 		}
 	}
 
-	@Subscribe
-	private void onExternalPluginsChanged(ExternalPluginsChanged ev)
+	private JPanel addSection(String name)
 	{
-		SwingUtilities.invokeLater(this::rebuildPluginList);
+		final MinimumSizedPanel section = new MinimumSizedPanel();
+		section.setLayout(new BoxLayout(section, BoxLayout.Y_AXIS));
+		section.setMinimumSize(new Dimension(PANEL_WIDTH, 0));
+
+		JPanel item = new JPanel();
+		item.setLayout(new BorderLayout());
+		item.setMinimumSize(new Dimension(PANEL_WIDTH, 0));
+
+		JLabel headerLabel = new JLabel(name);
+		headerLabel.setFont(FontManager.getRunescapeFont());
+		headerLabel.setForeground(ColorScheme.BRAND_BLUE);
+		headerLabel.setPreferredSize(new Dimension(PANEL_WIDTH, (int) headerLabel.getPreferredSize().getHeight()));
+
+		final boolean state = Boolean.parseBoolean(configManager.getConfiguration("pluginlist", name));
+		final JToggleButton collapse = new JToggleButton(SECTION_EXPAND_ICON, state);
+
+		SwingUtil.removeButtonDecorations(collapse);
+		collapse.setRolloverIcon(SECTION_EXPAND_ICON_HOVER);
+		collapse.setSelectedIcon(SECTION_RETRACT_ICON);
+		collapse.setRolloverSelectedIcon(SECTION_RETRACT_ICON_HOVER);
+		collapse.setToolTipText(state ? "Retract" : "Expand");
+		collapse.setPreferredSize(new Dimension(20, 20));
+		collapse.setFont(collapse.getFont().deriveFont(16.0f));
+		collapse.setBorder(null);
+		collapse.setMargin(new Insets(0, 0, 0, 0));
+
+		headerLabel.setBorder(new EmptyBorder(0, 10, 0, 0));
+
+		item.add(collapse, BorderLayout.WEST);
+		item.add(headerLabel, BorderLayout.CENTER);
+
+		final JPanel sectionContents = new JPanel();
+		sectionContents.setLayout(new DynamicGridLayout(0, 1, 0, 5));
+		sectionContents.setMinimumSize(new Dimension(PANEL_WIDTH, 0));
+		sectionContents.setBorder(new EmptyBorder(OFFSET, 5, 0, 0));
+		section.add(item, BorderLayout.NORTH);
+		section.add(sectionContents, BorderLayout.SOUTH);
+
+		sectionContents.setVisible(state);
+
+		// Add listeners to each part of the header so that it's easier to toggle them
+		final MouseAdapter adapter = new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				toggleSection(name, collapse, sectionContents);
+			}
+		};
+		collapse.addActionListener(e -> toggleSection(name, collapse, sectionContents));
+		headerLabel.addMouseListener(adapter);
+
+		// Allow for sub-sections
+		mainPanel.add(section);
+		sectionsCopy.add(section);
+
+		return sectionContents;
+	}
+
+	private void toggleSection(String key, JToggleButton button, JPanel contents)
+	{
+		if (!button.isEnabled())
+		{
+			return;
+		}
+
+		boolean newState = !contents.isVisible();
+		button.setSelected(newState);
+		button.setToolTipText(newState ? "Retract" : "Expand");
+		contents.setVisible(newState);
+		configManager.setConfiguration("pluginlist", key, newState);
+		SwingUtilities.invokeLater(() ->
+		{
+			contents.revalidate();
+			contents.repaint();
+		});
+	}
+
+	private void forceExpandSection(JToggleButton button, JPanel contents)
+	{
+		button.setSelected(true);
+		button.setToolTipText(null);
+		button.setEnabled(false);
+		contents.setVisible(true);
+
+		SwingUtilities.invokeLater(() ->
+		{
+			contents.revalidate();
+			contents.repaint();
+		});
+	}
+
+	private void resetSection(String key, JToggleButton button, JPanel contents)
+	{
+		boolean newState = Boolean.parseBoolean(configManager.getConfiguration("pluginlist", key));
+		button.setSelected(newState);
+		button.setToolTipText(newState ? "Retract" : "Expand");
+		contents.setVisible(newState);
+		SwingUtilities.invokeLater(() ->
+		{
+			contents.revalidate();
+			contents.repaint();
+		});
+	}
+
+	private Color getColorByCategory(PluginType pluginType)
+	{
+		if (!openOSRSConfig.enabledColors())
+		{
+			return Color.LIGHT_GRAY;
+		}
+
+		switch (pluginType)
+		{
+			case EXTERNAL:
+				return openOSRSConfig.externalColor();
+			case PVM:
+				return openOSRSConfig.pvmColor();
+			case PVP:
+				return openOSRSConfig.pvpColor();
+			case SKILLING:
+				return openOSRSConfig.skillingColor();
+			case UTILITY:
+				return openOSRSConfig.utilityColor();
+			case MISCELLANEOUS:
+				return openOSRSConfig.miscellaneousColor();
+			case MINIGAME:
+				return openOSRSConfig.minigameColor();
+			case GAMEMODE:
+				return openOSRSConfig.gamemodeColor();
+			case IMPORTANT:
+				return Color.WHITE;
+		}
+
+		return Color.LIGHT_GRAY;
+	}
+
+	public void sortPluginList(Comparator<PluginListItem> comparator)
+	{
+		if (comparator != null)
+		{
+			pluginList.sort(comparator.thenComparing(ev -> ev.getPluginConfig().getName()));
+			return;
+		}
+
+		if (openOSRSConfig.pluginSortMode() == net.runelite.client.config.OpenOSRSConfig.SortStyle.CATEGORY)
+		{
+			pluginList.sort(categoryComparator.thenComparing(ev -> ev.getPluginConfig().getName()));
+		}
+		else
+		{
+			pluginList.sort(Comparator.comparing(ev -> ev.getPluginConfig().getName()));
+		}
 	}
 }

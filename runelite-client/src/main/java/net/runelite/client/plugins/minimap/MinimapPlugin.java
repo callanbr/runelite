@@ -30,33 +30,34 @@ import java.util.Arrays;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
-import net.runelite.api.SpritePixels;
-import net.runelite.client.events.ConfigChanged;
+import net.runelite.api.Sprite;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.WidgetHiddenChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 
 @PluginDescriptor(
 	name = "Minimap",
 	description = "Customize the color of minimap dots",
-	tags = {"items", "npcs", "players"}
+	tags = {"items", "npcs", "players", "hd"},
+	type = PluginType.UTILITY
 )
 public class MinimapPlugin extends Plugin
 {
-	private static final int NUM_MAPDOTS = 6;
-
 	@Inject
 	private Client client;
 
 	@Inject
 	private MinimapConfig config;
 
-	private SpritePixels[] originalDotSprites;
+	private Sprite[] originalDotSprites;
+	private Color[] colors;
 
 	@Provides
 	private MinimapConfig provideConfig(ConfigManager configManager)
@@ -65,22 +66,26 @@ public class MinimapPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
 		updateMinimapWidgetVisibility(config.hideMinimap());
 		storeOriginalDots();
 		replaceMapDots();
+
+		client.setHdMinimapEnabled(config.hdMinimapEnabled());
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		updateMinimapWidgetVisibility(false);
 		restoreOriginalDots();
+
+		client.setHdMinimapEnabled(false);
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged event)
+	private void onGameStateChanged(GameStateChanged event)
 	{
 		if (event.getGameState() == GameState.LOGIN_SCREEN && originalDotSprites == null)
 		{
@@ -90,10 +95,16 @@ public class MinimapPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onConfigChanged(ConfigChanged event)
+	private void onConfigChanged(ConfigChanged event)
 	{
 		if (!event.getGroup().equals("minimap"))
 		{
+			return;
+		}
+
+		if (event.getKey().equals("hdMinimapEnabled"))
+		{
+			client.setHdMinimapEnabled(config.hdMinimapEnabled());
 			return;
 		}
 
@@ -103,11 +114,16 @@ public class MinimapPlugin extends Plugin
 			return;
 		}
 
+		if (event.getKey().endsWith("Color"))
+		{
+			colors = null;
+		}
+
 		replaceMapDots();
 	}
 
 	@Subscribe
-	public void onWidgetHiddenChanged(WidgetHiddenChanged event)
+	private void onWidgetHiddenChanged(WidgetHiddenChanged event)
 	{
 		updateMinimapWidgetVisibility(config.hideMinimap());
 	}
@@ -138,7 +154,7 @@ public class MinimapPlugin extends Plugin
 
 	private void replaceMapDots()
 	{
-		SpritePixels[] mapDots = client.getMapDots();
+		Sprite[] mapDots = client.getMapDots();
 
 		if (mapDots == null)
 		{
@@ -154,19 +170,24 @@ public class MinimapPlugin extends Plugin
 
 	private Color[] getColors()
 	{
-		Color[] colors = new Color[NUM_MAPDOTS];
-		colors[0] = config.itemColor();
-		colors[1] = config.npcColor();
-		colors[2] = config.playerColor();
-		colors[3] = config.friendColor();
-		colors[4] = config.teamColor();
-		colors[5] = config.clanColor();
+		if (colors == null)
+		{
+			colors = new Color[]
+			{
+				config.itemColor(),
+				config.npcColor(),
+				config.playerColor(),
+				config.friendColor(),
+				config.teamColor(),
+				config.clanColor()
+			};
+		}
 		return colors;
 	}
 
 	private void storeOriginalDots()
 	{
-		SpritePixels[] originalDots = client.getMapDots();
+		Sprite[] originalDots = client.getMapDots();
 
 		if (originalDots == null)
 		{
@@ -178,7 +199,7 @@ public class MinimapPlugin extends Plugin
 
 	private void restoreOriginalDots()
 	{
-		SpritePixels[] mapDots = client.getMapDots();
+		Sprite[] mapDots = client.getMapDots();
 
 		if (originalDotSprites == null || mapDots == null)
 		{

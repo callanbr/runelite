@@ -31,7 +31,13 @@ import java.util.HashSet;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import static net.runelite.api.ItemID.*;
-import static net.runelite.client.plugins.itemstats.Builders.*;
+import static net.runelite.client.plugins.itemstats.Builders.boost;
+import static net.runelite.client.plugins.itemstats.Builders.combo;
+import static net.runelite.client.plugins.itemstats.Builders.dec;
+import static net.runelite.client.plugins.itemstats.Builders.food;
+import static net.runelite.client.plugins.itemstats.Builders.heal;
+import static net.runelite.client.plugins.itemstats.Builders.perc;
+import static net.runelite.client.plugins.itemstats.Builders.range;
 import net.runelite.client.plugins.itemstats.food.Anglerfish;
 import net.runelite.client.plugins.itemstats.potions.GauntletPotion;
 import net.runelite.client.plugins.itemstats.potions.PrayerPotion;
@@ -43,7 +49,7 @@ import static net.runelite.client.plugins.itemstats.stats.Stats.*;
 
 @Singleton
 @Slf4j
-public class ItemStatChanges
+class ItemStatChanges
 {
 	ItemStatChanges()
 	{
@@ -55,8 +61,8 @@ public class ItemStatChanges
 		add(food(-5), POISON_KARAMBWAN);
 		add(food(1), POTATO, ONION, CABBAGE, POT_OF_CREAM, CHOPPED_ONION, ANCHOVIES);
 		add(food(2), TOMATO, CHOPPED_TOMATO, BANANA, SLICED_BANANA, ORANGE, ORANGE_SLICES, ORANGE_CHUNKS,
-				PINEAPPLE_RING, PINEAPPLE_CHUNKS, SPICY_SAUCE, CHEESE, SPINACH_ROLL, LEMON, LEMON_CHUNKS, LEMON_SLICES,
-				LIME, LIME_CHUNKS, LIME_SLICES, DWELLBERRIES);
+			PINEAPPLE_RING, PINEAPPLE_CHUNKS, SPICY_SAUCE, CHEESE, SPINACH_ROLL, LEMON, LEMON_CHUNKS, LEMON_SLICES,
+			LIME, LIME_CHUNKS, LIME_SLICES, DWELLBERRIES);
 		add(food(3), SHRIMPS, COOKED_MEAT, COOKED_CHICKEN, ROE, CHOCOLATE_BAR);
 		add(food(4), SARDINE, CAKE, _23_CAKE, SLICE_OF_CAKE, CHOCOLATEY_MILK, BAKED_POTATO, EDIBLE_SEAWEED, MOONLIGHT_MEAD);
 		add(food(5), BREAD, HERRING, CHOCOLATE_CAKE, _23_CHOCOLATE_CAKE, CHOCOLATE_SLICE, COOKED_RABBIT, CHILLI_CON_CARNE,
@@ -97,7 +103,7 @@ public class ItemStatChanges
 
 		// Dorgeshuun Cuisine
 		add(food(2), BAT_SHISH, COATED_FROGS_LEGS, FILLETS, FINGERS, FROGBURGER, FROGSPAWN_GUMBO, GREEN_GLOOP_SOUP,
-				GRUBS__LA_MODE, MUSHROOMS, ROAST_FROG);
+			GRUBS__LA_MODE, MUSHROOMS, ROAST_FROG);
 		add(food(3), LOACH);
 		add(range(food(3), food(6)), FROG_SPAWN);
 		add(range(food(6), food(10)), COOKED_SLIMY_EEL);

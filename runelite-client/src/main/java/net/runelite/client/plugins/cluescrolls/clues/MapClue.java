@@ -28,9 +28,10 @@ import com.google.common.collect.ImmutableSet;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.util.Set;
+import lombok.AccessLevel;
 import lombok.Getter;
 import static net.runelite.api.ItemID.*;
-import net.runelite.api.ObjectComposition;
+import net.runelite.api.ObjectDefinition;
 import static net.runelite.api.ObjectID.CRATE_18506;
 import static net.runelite.api.ObjectID.CRATE_2620;
 import static net.runelite.api.ObjectID.CRATE_354;
@@ -49,7 +50,7 @@ import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.PanelComponent;
 import net.runelite.client.ui.overlay.components.TitleComponent;
 
-@Getter
+@Getter(AccessLevel.PUBLIC)
 public class MapClue extends ClueScroll implements ObjectClueScroll
 {
 	private static final Set<MapClue> CLUES = ImmutableSet.of(
@@ -127,7 +128,7 @@ public class MapClue extends ClueScroll implements ObjectClueScroll
 
 		if (objectId != -1)
 		{
-			ObjectComposition objectToClick = plugin.getClient().getObjectDefinition(getObjectId());
+			ObjectDefinition objectToClick = plugin.getClient().getObjectDefinition(getObjectId());
 
 			String objectName = "N/A";
 
@@ -204,6 +205,6 @@ public class MapClue extends ClueScroll implements ObjectClueScroll
 
 	public int[] getObjectIds()
 	{
-		return new int[] {objectId};
+		return new int[]{objectId};
 	}
 }

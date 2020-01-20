@@ -60,7 +60,7 @@ public class WorldService
 
 	@Inject
 	private WorldService(Client client, ScheduledExecutorService scheduledExecutorService, WorldClient worldClient,
-		EventBus eventBus)
+					EventBus eventBus)
 	{
 		this.client = client;
 		this.scheduledExecutorService = scheduledExecutorService;
@@ -94,7 +94,7 @@ public class WorldService
 			WorldResult worldResult = worldClient.lookupWorlds();
 			worldResult.getWorlds().sort(Comparator.comparingInt(World::getId));
 			worlds = worldResult;
-			eventBus.post(new WorldsFetch(worldResult));
+			eventBus.post(WorldsFetch.class, new WorldsFetch(worldResult));
 		}
 		catch (IOException ex)
 		{

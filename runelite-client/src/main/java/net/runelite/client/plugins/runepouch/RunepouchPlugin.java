@@ -25,17 +25,27 @@
 package net.runelite.client.plugins.runepouch;
 
 import com.google.inject.Provides;
+import java.awt.Color;
 import javax.inject.Inject;
+import javax.inject.Singleton;
+import lombok.AccessLevel;
+import lombok.Getter;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
+import net.runelite.client.plugins.runepouch.config.RunePouchOverlayMode;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 @PluginDescriptor(
 	name = "Rune Pouch",
 	description = "Show the contents of your rune pouch",
-	tags = {"combat", "magic", "overlay"}
+	tags = {"combat", "magic", "overlay"},
+	type = PluginType.UTILITY
 )
+@Singleton
 public class RunepouchPlugin extends Plugin
 {
 	@Inject
@@ -44,6 +54,16 @@ public class RunepouchPlugin extends Plugin
 	@Inject
 	private RunepouchOverlay overlay;
 
+	@Inject
+	private RunepouchConfig config;
+
+	@Getter(AccessLevel.PACKAGE)
+	private Color fontColor;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showIcons;
+	@Getter(AccessLevel.PACKAGE)
+	private RunePouchOverlayMode runePouchOverlayMode;
+
 	@Provides
 	RunepouchConfig getConfig(ConfigManager configManager)
 	{
@@ -51,14 +71,35 @@ public class RunepouchPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+		updateConfig();
+
 		overlayManager.add(overlay);
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		overlayManager.remove(overlay);
+	}
+
+
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("runepouch"))
+		{
+			return;
+		}
+
+		updateConfig();
+	}
+
+	private void updateConfig()
+	{
+		this.fontColor = config.fontColor();
+		this.showIcons = config.showIcons();
+		this.runePouchOverlayMode = config.runePouchOverlayMode();
 	}
 }

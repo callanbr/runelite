@@ -33,11 +33,12 @@ import net.runelite.api.Client;
 import net.runelite.api.Skill;
 import net.runelite.api.VarPlayer;
 import net.runelite.api.Varbits;
-import net.runelite.api.events.WidgetHiddenChanged;
-import net.runelite.client.events.ConfigChanged;
 import net.runelite.api.events.VarbitChanged;
+import net.runelite.api.events.WidgetHiddenChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
+import net.runelite.client.config.OpenOSRSConfig;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.ui.overlay.OverlayManager;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -66,6 +67,10 @@ public class AttackStylesPluginTest
 	@Mock
 	@Bind
 	AttackStylesConfig attackConfig;
+
+	@Mock
+	@Bind
+	private OpenOSRSConfig openOSRSConfig;
 
 	@Inject
 	AttackStylesPlugin attackPlugin;
@@ -205,7 +210,7 @@ public class AttackStylesPluginTest
 		hideWidgetEvent.setKey("removeWarnedStyles");
 		hideWidgetEvent.setNewValue("true");
 		attackPlugin.onConfigChanged(hideWidgetEvent);
-		when(attackConfig.removeWarnedStyles()).thenReturn(true);
+		attackPlugin.removeWarnedStyles = true;
 
 		// equip bludgeon on player
 		when(client.getVar(Varbits.EQUIPPED_WEAPON_TYPE)).thenReturn(WeaponType.TYPE_26.ordinal());
@@ -224,6 +229,7 @@ public class AttackStylesPluginTest
 
 		// verify that the longrange attack style widget is now hidden
 		verify(widget, atLeastOnce()).setHidden(captor.capture());
+		System.out.println(captor.getValue());
 		assertTrue(captor.getValue());
 	}
 

@@ -24,9 +24,12 @@
  */
 package net.runelite.client.plugins.inventorygrid;
 
+import java.awt.Color;
+import net.runelite.client.config.Alpha;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.Range;
 
 @ConfigGroup("inventorygrid")
 public interface InventoryGridConfig extends Config
@@ -34,7 +37,8 @@ public interface InventoryGridConfig extends Config
 	@ConfigItem(
 		keyName = "showItem",
 		name = "Show item",
-		description = "Show a preview of the item in the new slot"
+		description = "Show a preview of the item in the new slot",
+		position = 1
 	)
 	default boolean showItem()
 	{
@@ -44,7 +48,8 @@ public interface InventoryGridConfig extends Config
 	@ConfigItem(
 		keyName = "showGrid",
 		name = "Show grid",
-		description = "Show a grid on the inventory while dragging"
+		description = "Show a grid on the inventory while dragging",
+		position = 2
 	)
 	default boolean showGrid()
 	{
@@ -54,10 +59,47 @@ public interface InventoryGridConfig extends Config
 	@ConfigItem(
 		keyName = "showHighlight",
 		name = "Highlight background",
-		description = "Show a green background highlight on the new slot"
+		description = "Show a background highlight on the new slot",
+		position = 3
 	)
 	default boolean showHighlight()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "dragDelay",
+		name = "Drag Delay",
+		description = "Time in ms to wait after item press before showing grid",
+		position = 4
+	)
+	@Range(min = 100)
+	default int dragDelay()
+	{
+		return 100;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "gridColor",
+		name = "Grid color",
+		description = "The color of the grid",
+		position = 5
+	)
+	default Color gridColor()
+	{
+		return new Color(255, 255, 255, 45);
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "highlightColor",
+		name = "Highlight color",
+		description = "The color of the new inventory slot highlight",
+		position = 6
+	)
+	default Color highlightColor()
+	{
+		return new Color(0, 255, 0, 45);
 	}
 }

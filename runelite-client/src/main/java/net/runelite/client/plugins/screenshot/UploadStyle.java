@@ -25,9 +25,20 @@
 
 package net.runelite.client.plugins.screenshot;
 
+import lombok.RequiredArgsConstructor;
+
+@RequiredArgsConstructor
 public enum UploadStyle
 {
-	NEITHER,
-	IMGUR,
-	CLIPBOARD
+	NEITHER("Neither"),
+	IMGUR("Imgur"),
+	CLIPBOARD("Clipboard");
+
+	private final String name;
+
+	@Override
+	public String toString()
+	{
+		return name;
+	}
 }

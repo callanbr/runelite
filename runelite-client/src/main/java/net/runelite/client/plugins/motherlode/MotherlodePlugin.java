@@ -26,6 +26,7 @@
  */
 package net.runelite.client.plugins.motherlode;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multiset;
@@ -38,8 +39,11 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import lombok.AccessLevel;
 import lombok.Getter;
+import net.runelite.api.AnimationID;
+import static net.runelite.api.AnimationID.*;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
@@ -48,35 +52,45 @@ import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.ItemID;
-import net.runelite.api.MenuAction;
-import static net.runelite.api.ObjectID.ORE_VEIN_26661;
-import static net.runelite.api.ObjectID.ORE_VEIN_26662;
-import static net.runelite.api.ObjectID.ORE_VEIN_26663;
-import static net.runelite.api.ObjectID.ORE_VEIN_26664;
-import static net.runelite.api.ObjectID.ROCKFALL;
-import static net.runelite.api.ObjectID.ROCKFALL_26680;
+import net.runelite.api.MenuOpcode;
+import net.runelite.api.NPC;
+import net.runelite.api.NpcID;
+import static net.runelite.api.ObjectID.*;
 import net.runelite.api.Perspective;
+import net.runelite.api.Player;
+import net.runelite.api.ScriptID;
 import net.runelite.api.Varbits;
 import net.runelite.api.WallObject;
 import net.runelite.api.coords.LocalPoint;
+import net.runelite.api.coords.WorldPoint;
+import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameObjectChanged;
 import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
+import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.events.OverheadTextChanged;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.events.WallObjectChanged;
 import net.runelite.api.events.WallObjectDespawned;
 import net.runelite.api.events.WallObjectSpawned;
+import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.util.Text;
 import net.runelite.api.widgets.Widget;
+import net.runelite.api.widgets.WidgetID;
 import net.runelite.api.widgets.WidgetInfo;
+import net.runelite.client.Notifier;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.OverlayMenuClicked;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
@@ -85,12 +99,15 @@ import net.runelite.client.ui.overlay.OverlayMenuEntry;
 	name = "Motherlode Mine",
 	description = "Show helpful information inside the Motherload Mine",
 	tags = {"pay", "dirt", "mining", "mlm", "skilling", "overlay"},
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.SKILLING
 )
+@Singleton
 public class MotherlodePlugin extends Plugin
 {
 	private static final Set<Integer> MOTHERLODE_MAP_REGIONS = ImmutableSet.of(14679, 14680, 14681, 14935, 14936, 14937, 15191, 15192, 15193);
 	private static final Set<Integer> MINE_SPOTS = ImmutableSet.of(ORE_VEIN_26661, ORE_VEIN_26662, ORE_VEIN_26663, ORE_VEIN_26664);
+	private static final Set<Integer> DEPLETED_SPOTS = ImmutableSet.of(DEPLETED_VEIN_26665, DEPLETED_VEIN_26666, DEPLETED_VEIN_26667, DEPLETED_VEIN_26668);
 	private static final Set<Integer> MLM_ORE_TYPES = ImmutableSet.of(ItemID.RUNITE_ORE, ItemID.ADAMANTITE_ORE,
 		ItemID.MITHRIL_ORE, ItemID.GOLD_ORE, ItemID.COAL, ItemID.GOLDEN_NUGGET);
 	private static final Set<Integer> ROCK_OBSTACLES = ImmutableSet.of(ROCKFALL, ROCKFALL_26680);
@@ -101,6 +118,10 @@ public class MotherlodePlugin extends Plugin
 	private static final int SACK_SIZE = 81;
 
 	private static final int UPPER_FLOOR_HEIGHT = -500;
+
+	// The motherlode mining animation has gaps in it during which the animation switches to IDLE
+	// so a minimum threshold is required before the idle animation will be registered as not mining
+	private static final Duration ANIMATION_IDLE_DELAY = Duration.ofMillis(1800);
 
 	@Inject
 	private OverlayManager overlayManager;
@@ -129,6 +150,9 @@ public class MotherlodePlugin extends Plugin
 	@Inject
 	private ClientThread clientThread;
 
+	@Inject
+	private Notifier notifier;
+
 	@Getter(AccessLevel.PACKAGE)
 	private boolean inMlm;
 
@@ -149,6 +173,37 @@ public class MotherlodePlugin extends Plugin
 	@Getter(AccessLevel.PACKAGE)
 	private final Set<GameObject> rocks = new HashSet<>();
 
+	@Getter(AccessLevel.PACKAGE)
+	private boolean isMining;
+	@Getter(AccessLevel.PACKAGE)
+	private WorldPoint targetVeinLocation = null;
+	private boolean playerHasReachedTargetVein;
+	private int lastAnimation = AnimationID.IDLE;
+	private Instant lastAnimating;
+
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showVeins;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showRockFalls;
+	@Getter(AccessLevel.PACKAGE)
+	private int statTimeout;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showSack;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showMiningStats;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showDepositsLeft;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showMiningState;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showGemsFound;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showOresFound;
+	private boolean notifyOnIdle;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showTargetVein;
+	private boolean payDirtMsg;
+
 	@Provides
 	MotherlodeConfig getConfig(ConfigManager configManager)
 	{
@@ -158,6 +213,8 @@ public class MotherlodePlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		updateConfig();
+
 		overlayManager.add(overlay);
 		overlayManager.add(rocksOverlay);
 		overlayManager.add(motherlodeGemOverlay);
@@ -195,10 +252,10 @@ public class MotherlodePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onOverlayMenuClicked(OverlayMenuClicked overlayMenuClicked)
+	private void onOverlayMenuClicked(OverlayMenuClicked overlayMenuClicked)
 	{
 		OverlayMenuEntry overlayMenuEntry = overlayMenuClicked.getEntry();
-		if (overlayMenuEntry.getMenuAction() == MenuAction.RUNELITE_OVERLAY
+		if (overlayMenuEntry.getMenuOpcode() == MenuOpcode.RUNELITE_OVERLAY
 			&& overlayMenuClicked.getEntry().getOption().equals(MotherlodeOverlay.MINING_RESET)
 			&& overlayMenuClicked.getOverlay() == overlay)
 		{
@@ -207,7 +264,7 @@ public class MotherlodePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onVarbitChanged(VarbitChanged event)
+	void onVarbitChanged(VarbitChanged event)
 	{
 		if (inMlm)
 		{
@@ -230,7 +287,7 @@ public class MotherlodePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onChatMessage(ChatMessage event)
+	private void onChatMessage(ChatMessage event)
 	{
 		if (!inMlm || event.getType() != ChatMessageType.SPAM)
 		{
@@ -267,12 +324,13 @@ public class MotherlodePlugin extends Plugin
 		period = 1,
 		unit = ChronoUnit.SECONDS
 	)
-	public void checkMining()
+	void checkMining()
 	{
 		if (!inMlm)
 		{
 			return;
 		}
+
 
 		depositsLeft = calculateDepositsLeft();
 
@@ -283,7 +341,7 @@ public class MotherlodePlugin extends Plugin
 		}
 
 		// reset recentPayDirtMined if you haven't mined anything recently
-		Duration statTimeout = Duration.ofMinutes(config.statTimeout());
+		Duration statTimeout = Duration.ofMinutes(this.statTimeout);
 		Duration sinceMined = Duration.between(lastPayDirtMined, Instant.now());
 
 		if (sinceMined.compareTo(statTimeout) >= 0)
@@ -293,7 +351,164 @@ public class MotherlodePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onWallObjectSpawned(WallObjectSpawned event)
+	private void onMenuOptionClicked(MenuOptionClicked menu)
+	{
+		if (!inMlm)
+		{
+			return;
+		}
+
+		if (MINE_SPOTS.contains(menu.getIdentifier()) && menu.getMenuOpcode() == MenuOpcode.GAME_OBJECT_FIRST_OPTION)
+		{
+			resetIdleChecks();
+			int veinX = menu.getParam0();
+			int veinY = menu.getParam1();
+			targetVeinLocation = WorldPoint.fromScene(client, veinX, veinY, client.getPlane());
+		}
+	}
+
+	@Subscribe
+	private void onGameTick(GameTick event)
+	{
+		if (!inMlm)
+		{
+			return;
+		}
+
+		checkDistanceToTargetVein();
+		checkAnimationIdle();
+	}
+
+	private void checkDistanceToTargetVein()
+	{
+		if (targetVeinLocation == null)
+		{
+			return;
+		}
+
+		float distanceFromTargetVein = client.getLocalPlayer().getWorldLocation().distanceToHypotenuse(targetVeinLocation);
+		// Player must reach the target vein first before we begin checking for the player moving away from it
+		if (!playerHasReachedTargetVein && distanceFromTargetVein == 1)
+		{
+			isMining = true;
+			playerHasReachedTargetVein = true;
+		}
+		else if (playerHasReachedTargetVein && distanceFromTargetVein > 1)
+		{
+			isMining = false;
+			resetIdleChecks();
+		}
+	}
+
+	@Subscribe
+	private void onAnimationChanged(AnimationChanged event)
+	{
+		if (!inMlm)
+		{
+			return;
+		}
+
+		Player localPlayer = client.getLocalPlayer();
+		if (localPlayer != event.getActor())
+		{
+			return;
+		}
+
+		int animation = localPlayer.getAnimation();
+
+		switch (animation)
+		{
+			case MINING_MOTHERLODE_BRONZE:
+			case MINING_MOTHERLODE_IRON:
+			case MINING_MOTHERLODE_STEEL:
+			case MINING_MOTHERLODE_BLACK:
+			case MINING_MOTHERLODE_MITHRIL:
+			case MINING_MOTHERLODE_ADAMANT:
+			case MINING_MOTHERLODE_RUNE:
+			case MINING_MOTHERLODE_DRAGON:
+			case MINING_MOTHERLODE_DRAGON_UPGRADED:
+			case MINING_MOTHERLODE_DRAGON_OR:
+			case MINING_MOTHERLODE_CRYSTAL:
+			case MINING_MOTHERLODE_INFERNAL:
+			case MINING_MOTHERLODE_3A:
+				lastAnimation = animation;
+				lastAnimating = Instant.now();
+				break;
+			case IDLE:
+				lastAnimating = Instant.now();
+				break;
+			default:
+				// On unknown animation simply assume the animation is invalid
+				lastAnimation = IDLE;
+				lastAnimating = null;
+		}
+	}
+
+	private void checkAnimationIdle()
+	{
+		if (lastAnimation == IDLE)
+		{
+			return;
+		}
+
+		final int animation = client.getLocalPlayer().getAnimation();
+
+		if (animation == IDLE)
+		{
+			if (lastAnimating != null && Instant.now().compareTo(lastAnimating.plus(ANIMATION_IDLE_DELAY)) >= 0)
+			{
+				lastAnimation = IDLE;
+				lastAnimating = null;
+				isMining = false;
+				resetIdleChecks();
+				sendIdleNotification();
+			}
+		}
+		else
+		{
+			lastAnimating = Instant.now();
+		}
+	}
+
+	@Subscribe
+	private void onWidgetLoaded(WidgetLoaded event)
+	{
+		if (!inMlm || targetVeinLocation == null)
+		{
+			return;
+		}
+
+		int widgetID = event.getGroupId();
+
+		if (widgetID == WidgetID.MOTHERLODE_MINE_FULL_INVENTORY_GROUP_ID || widgetID == WidgetID.LEVEL_UP_GROUP_ID)
+		{
+			isMining = false;
+			resetIdleChecks();
+			sendIdleNotification();
+		}
+	}
+
+	private void resetIdleChecks()
+	{
+		isMining = false;
+		lastAnimation = IDLE;
+		lastAnimating = null;
+		playerHasReachedTargetVein = false;
+		targetVeinLocation = null;
+	}
+
+	private void sendIdleNotification()
+	{
+		if (!this.notifyOnIdle)
+		{
+			return;
+		}
+
+		notifier.notify(client.getLocalPlayer().getName() + " has stopped mining!");
+	}
+
+	@Subscribe
+	private void onWallObjectSpawned(WallObjectSpawned event)
 	{
 		if (!inMlm)
 		{
@@ -301,14 +516,21 @@ public class MotherlodePlugin extends Plugin
 		}
 
 		WallObject wallObject = event.getWallObject();
-		if (MINE_SPOTS.contains(wallObject.getId()))
+		int wallObjectId = wallObject.getId();
+		if (MINE_SPOTS.contains(wallObjectId))
 		{
 			veins.add(wallObject);
+		}
+		else if (DEPLETED_SPOTS.contains(wallObjectId) && wallObject.getWorldLocation().equals(targetVeinLocation))
+		{
+			isMining = false;
+			resetIdleChecks();
+			sendIdleNotification();
 		}
 	}
 
 	@Subscribe
-	public void onWallObjectChanged(WallObjectChanged event)
+	private void onWallObjectChanged(WallObjectChanged event)
 	{
 		if (!inMlm)
 		{
@@ -326,7 +548,7 @@ public class MotherlodePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onWallObjectDespawned(WallObjectDespawned event)
+	private void onWallObjectDespawned(WallObjectDespawned event)
 	{
 		if (!inMlm)
 		{
@@ -338,7 +560,7 @@ public class MotherlodePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameObjectSpawned(GameObjectSpawned event)
+	private void onGameObjectSpawned(GameObjectSpawned event)
 	{
 		if (!inMlm)
 		{
@@ -353,7 +575,7 @@ public class MotherlodePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameObjectChanged(GameObjectChanged event)
+	private void onGameObjectChanged(GameObjectChanged event)
 	{
 		if (!inMlm)
 		{
@@ -372,7 +594,7 @@ public class MotherlodePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameObjectDespawned(GameObjectDespawned event)
+	private void onGameObjectDespawned(GameObjectDespawned event)
 	{
 		if (!inMlm)
 		{
@@ -384,7 +606,7 @@ public class MotherlodePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged event)
+	void onGameStateChanged(GameStateChanged event)
 	{
 		if (event.getGameState() == GameState.LOADING)
 		{
@@ -402,7 +624,7 @@ public class MotherlodePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onItemContainerChanged(ItemContainerChanged event)
+	void onItemContainerChanged(ItemContainerChanged event)
 	{
 		final ItemContainer container = event.getItemContainer();
 
@@ -505,12 +727,68 @@ public class MotherlodePlugin extends Plugin
 	/**
 	 * Checks if the given point is "upstairs" in the mlm.
 	 * The upper floor is actually on z=0.
-	 *
-	 * @param localPoint
-	 * @return
 	 */
 	boolean isUpstairs(LocalPoint localPoint)
 	{
 		return Perspective.getTileHeight(client, localPoint, 0) < UPPER_FLOOR_HEIGHT;
+	}
+
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("motherlode"))
+		{
+			return;
+		}
+
+		updateConfig();
+	}
+
+	private void updateConfig()
+	{
+		this.showVeins = config.showVeins();
+		this.showRockFalls = config.showRockFalls();
+		this.statTimeout = config.statTimeout();
+		this.showSack = config.showSack();
+		this.showMiningStats = config.showMiningStats();
+		this.showDepositsLeft = config.showDepositsLeft();
+		this.showMiningState = config.showMiningState();
+		this.showGemsFound = config.showGemsFound();
+		this.showOresFound = config.showOresFound();
+		this.notifyOnIdle = config.notifyOnIdle();
+		this.showTargetVein = config.showTargetVein();
+		this.payDirtMsg = config.payDirtMsg();
+	}
+
+	@Subscribe
+	private void onOverheadTextChanged(OverheadTextChanged event)
+	{
+		if (!payDirtMsg || Strings.isNullOrEmpty(event.getOverheadText()) || !(event.getActor() instanceof NPC))
+		{
+			return;
+		}
+
+		switch (((NPC) event.getActor()).getId())
+		{
+			case NpcID.MINER_5606:
+			case NpcID.MINER_5813:
+			case NpcID.MINER_5814:
+			case NpcID.MINER_6565:
+			case NpcID.MINER_6567:
+			case NpcID.MINER_6568:
+			case NpcID.MINER_6569:
+			case NpcID.MINER_6570:
+			case NpcID.MINER_6571:
+			case NpcID.MINER_6572:
+			case NpcID.MINER_6645:
+				break;
+			default:
+				return;
+		}
+
+		if ("pay-dirt!".equals(Text.standardize(event.getOverheadText())))
+		{
+			client.runScript(ScriptID.PUBLICMSG, "Pay-dirt!");
+		}
 	}
 }

@@ -34,7 +34,7 @@ import net.runelite.api.coords.WorldPoint;
 
 @Data
 @Builder
-class GroundItem
+public class GroundItem
 {
 	private int id;
 	private int itemId;
@@ -46,8 +46,16 @@ class GroundItem
 	private int gePrice;
 	private int offset;
 	private boolean tradeable;
+	private boolean isMine;
+	private int ticks;
+	private int durationMillis;
+	private boolean isAlwaysPrivate;
+	private boolean isOwnedByPlayer;
+	private Instant droppedInstant;
+
 	@Nonnull
 	private LootType lootType;
+
 	@Nullable
 	private Instant spawnTime;
 

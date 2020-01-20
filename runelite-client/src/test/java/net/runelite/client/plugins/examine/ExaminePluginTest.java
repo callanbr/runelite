@@ -32,11 +32,12 @@ import javax.inject.Inject;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.ItemID;
-import net.runelite.api.MenuAction;
+import net.runelite.api.MenuOpcode;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.game.ItemManager;
 import net.runelite.http.api.examine.ExamineClient;
 import org.junit.Before;
@@ -77,6 +78,10 @@ public class ExaminePluginTest
 	@Bind
 	ScheduledExecutorService scheduledExecutorService;
 
+	@Mock
+	@Bind
+	private OpenOSRSConfig openOSRSConfig;
+
 	@Before
 	public void before()
 	{
@@ -88,16 +93,21 @@ public class ExaminePluginTest
 	{
 		when(client.getWidget(anyInt(), anyInt())).thenReturn(mock(Widget.class));
 
-		MenuOptionClicked menuOptionClicked = new MenuOptionClicked();
-		menuOptionClicked.setMenuOption("Examine");
-		menuOptionClicked.setMenuAction(MenuAction.EXAMINE_ITEM);
-		menuOptionClicked.setId(ItemID.ABYSSAL_WHIP);
+		MenuOptionClicked menuOptionClicked = new MenuOptionClicked(
+			"Examine",
+			"Something",
+			ItemID.ABYSSAL_WHIP,
+			MenuOpcode.EXAMINE_ITEM.getId(),
+			123,
+			456,
+			false
+		);
 		examinePlugin.onMenuOptionClicked(menuOptionClicked);
 
 		ChatMessage chatMessage = new ChatMessage(null, ChatMessageType.ITEM_EXAMINE, "", "A weapon from the abyss.", "", 0);
 		examinePlugin.onChatMessage(chatMessage);
 
-		// This passes due to not mocking the ItemComposition for the whip
+		// This passes due to not mocking the ItemDefinition for the whip
 		verify(examineClient).submitItem(anyInt(), anyString());
 	}
 
@@ -106,10 +116,16 @@ public class ExaminePluginTest
 	{
 		when(client.getWidget(anyInt(), anyInt())).thenReturn(mock(Widget.class));
 
-		MenuOptionClicked menuOptionClicked = new MenuOptionClicked();
-		menuOptionClicked.setMenuOption("Examine");
-		menuOptionClicked.setMenuAction(MenuAction.EXAMINE_ITEM);
-		menuOptionClicked.setId(ItemID.ABYSSAL_WHIP);
+		MenuOptionClicked menuOptionClicked = new MenuOptionClicked(
+			"Examine",
+			"Something",
+			ItemID.ABYSSAL_WHIP,
+			MenuOpcode.EXAMINE_ITEM.getId(),
+			123,
+			456,
+			false
+		);
+
 		examinePlugin.onMenuOptionClicked(menuOptionClicked);
 
 		ChatMessage chatMessage = new ChatMessage(null, ChatMessageType.ITEM_EXAMINE, "", "100000 x Abyssal whip", "", 0);

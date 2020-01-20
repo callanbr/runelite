@@ -30,41 +30,24 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.Range;
-import static net.runelite.client.plugins.cannon.CannonPlugin.MAX_CBALLS;
 
 @ConfigGroup("cannon")
 public interface CannonConfig extends Config
 {
 	@ConfigItem(
 		keyName = "showEmptyCannonNotification",
-		name = "Enable cannon notifications",
-		description = "Configures whether to notify you when your cannon is low on cannonballs",
-		position = 1
+		name = "Empty cannon notification",
+		description = "Configures whether to notify you that the cannon is empty"
 	)
-	default boolean showCannonNotifications()
+	default boolean showEmptyCannonNotification()
 	{
 		return true;
-	}
-
-	@Range(
-		max = MAX_CBALLS
-	)
-	@ConfigItem(
-		keyName = "lowWarningThreshold",
-		name = "Low Warning Threshold",
-		description = "Configures the number of cannonballs remaining before a notification is sent. <br>Regardless of this value, a notification will still be sent when your cannon is empty.",
-		position = 2
-	)
-	default int lowWarningThreshold()
-	{
-		return 0;
 	}
 
 	@ConfigItem(
 		keyName = "showInfobox",
 		name = "Show Cannonball infobox",
-		description = "Configures whether to show the cannonballs in an infobox",
-		position = 3
+		description = "Configures whether to show the cannonballs in an infobox"
 	)
 	default boolean showInfobox()
 	{
@@ -74,8 +57,7 @@ public interface CannonConfig extends Config
 	@ConfigItem(
 		keyName = "showDoubleHitSpot",
 		name = "Show double hit spots",
-		description = "Configures whether to show the NPC double hit spot",
-		position = 4
+		description = "Configures whether to show the NPC double hit spot"
 	)
 	default boolean showDoubleHitSpot()
 	{
@@ -86,8 +68,7 @@ public interface CannonConfig extends Config
 	@ConfigItem(
 		keyName = "highlightDoubleHitColor",
 		name = "Color of double hit spots",
-		description = "Configures the highlight color of double hit spots",
-		position = 5
+		description = "Configures the highlight color of double hit spots"
 	)
 	default Color highlightDoubleHitColor()
 	{
@@ -97,10 +78,32 @@ public interface CannonConfig extends Config
 	@ConfigItem(
 		keyName = "showCannonSpots",
 		name = "Show common cannon spots",
-		description = "Configures whether to show common cannon spots or not",
-		position = 6
+		description = "Configures whether to show common cannon spots or not"
 	)
 	default boolean showCannonSpots()
+	{
+		return true;
+	}
+
+	@Range(
+		max = 29
+	)
+	@ConfigItem(
+		keyName = "ammoAmount",
+		name = "Ammo left",
+		description = "Configure to set the amount of ammo left to receive ammo left notification"
+	)
+	default int ammoAmount()
+	{
+		return 5;
+	}
+
+	@ConfigItem(
+		keyName = "notifyAmmoLeft",
+		name = "Ammo left notification",
+		description = "Sends a notification when cannon ammo is under the specified amount"
+	)
+	default boolean notifyAmmoLeft()
 	{
 		return true;
 	}

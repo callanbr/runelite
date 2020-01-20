@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -73,6 +74,7 @@ import net.runelite.http.api.hiscore.Skill;
 import org.apache.commons.lang3.StringUtils;
 
 @Slf4j
+@Singleton
 public class HiscorePanel extends PluginPanel
 {
 	/* The maximum allowed username length in RuneScape accounts */
@@ -120,7 +122,7 @@ public class HiscorePanel extends PluginPanel
 	@Nullable
 	private Client client;
 
-	private final HiscoreConfig config;
+	private final HiscorePlugin plugin;
 
 	private final IconTextField searchBar;
 
@@ -132,8 +134,6 @@ public class HiscorePanel extends PluginPanel
 
 	private final HiscoreClient hiscoreClient = new HiscoreClient();
 
-	private HiscoreResult result;
-
 	/* The currently selected endpoint */
 	private HiscoreEndpoint selectedEndPoint;
 
@@ -141,10 +141,10 @@ public class HiscorePanel extends PluginPanel
 	private boolean loading = false;
 
 	@Inject
-	public HiscorePanel(HiscoreConfig config)
+	public HiscorePanel(HiscorePlugin plugin)
 	{
 		super();
-		this.config = config;
+		this.plugin = plugin;
 
 		// The layout seems to be ignoring the top margin and only gives it
 		// a 2-3 pixel margin, so I set the value to 18 to compensate
@@ -391,6 +391,7 @@ public class HiscorePanel extends PluginPanel
 			selectedEndPoint = HiscoreEndpoint.NORMAL;
 		}
 
+		HiscoreResult result;
 		try
 		{
 			log.debug("Hiscore endpoint " + selectedEndPoint.name() + " selected");
@@ -445,7 +446,7 @@ public class HiscorePanel extends PluginPanel
 				final long exp = s.getExperience();
 				final boolean isSkill = skill.getType() == HiscoreSkillType.SKILL;
 				int level = -1;
-				if (config.virtualLevels() && isSkill && exp > -1L)
+				if (plugin.isVirtualLevels() && isSkill && exp > -1L)
 				{
 					level = Experience.getLevelForXp((int) exp);
 				}
@@ -637,7 +638,11 @@ public class HiscorePanel extends PluginPanel
 		// Add a html progress bar to the hover information
 		if (skill != null && skill.getType() == HiscoreSkillType.SKILL)
 		{
-			long experience = result.getSkill(skill).getExperience();
+			long experience = 0;
+			if (skill != null)
+			{
+				experience = result.getSkill(skill).getExperience();
+			}
 			if (experience >= 0)
 			{
 				int currentXp = (int) experience;

@@ -25,7 +25,6 @@
  */
 package net.runelite.client.plugins.info;
 
-import com.google.common.base.MoreObjects;
 import com.google.inject.Inject;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -34,24 +33,21 @@ import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.concurrent.ScheduledExecutorService;
+import java.io.File;
 import javax.annotation.Nullable;
 import javax.inject.Singleton;
-import javax.swing.Box;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
-import javax.swing.event.HyperlinkEvent;
 import net.runelite.api.Client;
-import net.runelite.client.events.SessionClose;
-import net.runelite.client.events.SessionOpen;
+import static net.runelite.client.RuneLite.LOGS_DIR;
+import static net.runelite.client.RuneLite.PLUGINS_DIR;
+import static net.runelite.client.RuneLite.RUNELITE_DIR;
+import static net.runelite.client.RuneLite.SCREENSHOT_DIR;
 import net.runelite.client.RuneLiteProperties;
-import net.runelite.client.account.SessionManager;
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.eventbus.EventBus;
-import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
@@ -59,50 +55,42 @@ import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 
 @Singleton
-public class InfoPanel extends PluginPanel
+class InfoPanel extends PluginPanel
 {
-	private static final String RUNELITE_LOGIN = "https://runelite_login/";
-
 	private static final ImageIcon ARROW_RIGHT_ICON;
 	private static final ImageIcon GITHUB_ICON;
+	private static final ImageIcon FOLDER_ICON;
 	private static final ImageIcon DISCORD_ICON;
 	private static final ImageIcon PATREON_ICON;
-	private static final ImageIcon WIKI_ICON;
 	private static final ImageIcon IMPORT_ICON;
-
-	private final JLabel loggedLabel = new JLabel();
-	private final JRichTextPane emailLabel = new JRichTextPane();
-	private JPanel syncPanel;
-	private JPanel actionsContainer;
-
-	@Inject
-	@Nullable
-	private Client client;
-
-	@Inject
-	private EventBus eventBus;
-
-	@Inject
-	private SessionManager sessionManager;
-
-	@Inject
-	private ScheduledExecutorService executor;
-
-	@Inject
-	private ConfigManager configManager;
+	private static final String RUNELITE_DIRECTORY = System.getProperty("user.home") + "\\.runelite";
+	private static final String LOG_DIRECTORY = RUNELITE_DIRECTORY + "\\logs";
+	private static final String PLUGINS_DIRECTORY = RUNELITE_DIRECTORY + "\\plugins";
+	private static final String SCREENSHOT_DIRECTORY = RUNELITE_DIRECTORY + "\\screenshots";
 
 	static
 	{
 		ARROW_RIGHT_ICON = new ImageIcon(ImageUtil.getResourceStreamFromClass(InfoPanel.class, "/util/arrow_right.png"));
 		GITHUB_ICON = new ImageIcon(ImageUtil.getResourceStreamFromClass(InfoPanel.class, "github_icon.png"));
+		FOLDER_ICON = new ImageIcon(ImageUtil.getResourceStreamFromClass(InfoPanel.class, "folder_icon.png"));
 		DISCORD_ICON = new ImageIcon(ImageUtil.getResourceStreamFromClass(InfoPanel.class, "discord_icon.png"));
 		PATREON_ICON = new ImageIcon(ImageUtil.getResourceStreamFromClass(InfoPanel.class, "patreon_icon.png"));
-		WIKI_ICON = new ImageIcon(ImageUtil.getResourceStreamFromClass(InfoPanel.class, "wiki_icon.png"));
 		IMPORT_ICON = new ImageIcon(ImageUtil.getResourceStreamFromClass(InfoPanel.class, "import_icon.png"));
 	}
 
-	void init()
+	private JPanel syncPanel;
+	@Inject
+	@Nullable
+	private Client client;
+	@Inject
+	private ConfigManager configManager;
+	@Inject
+	private InfoPlugin plugin;
+
+	@Inject
+	public InfoPanel(final InfoPlugin plugin, final Client client)
 	{
+
 		setLayout(new BorderLayout());
 		setBackground(ColorScheme.DARK_GRAY_COLOR);
 		setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -117,6 +105,9 @@ public class InfoPanel extends PluginPanel
 		JLabel version = new JLabel(htmlLabel("RuneLite version: ", RuneLiteProperties.getVersion()));
 		version.setFont(smallFont);
 
+		JLabel plusVersion = new JLabel(htmlLabel("OpenOSRS version: ", RuneLiteProperties.getPlusVersion()));
+		plusVersion.setFont(smallFont);
+
 		JLabel revision = new JLabel();
 		revision.setFont(smallFont);
 
@@ -128,37 +119,13 @@ public class InfoPanel extends PluginPanel
 
 		revision.setText(htmlLabel("Oldschool revision: ", engineVer));
 
-		JLabel launcher = new JLabel(htmlLabel("Launcher version: ", MoreObjects
-			.firstNonNull(RuneLiteProperties.getLauncherVersion(), "Unknown")));
-		launcher.setFont(smallFont);
-
-		loggedLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		loggedLabel.setFont(smallFont);
-
-		emailLabel.setForeground(Color.WHITE);
-		emailLabel.setFont(smallFont);
-		emailLabel.enableAutoLinkHandler(false);
-		emailLabel.addHyperlinkListener(e ->
-		{
-			if (HyperlinkEvent.EventType.ACTIVATED.equals(e.getEventType()) && e.getURL() != null)
-			{
-				if (e.getURL().toString().equals(RUNELITE_LOGIN))
-				{
-					executor.execute(sessionManager::login);
-				}
-			}
-		});
-
 		versionPanel.add(version);
+		versionPanel.add(plusVersion);
 		versionPanel.add(revision);
-		versionPanel.add(launcher);
-		versionPanel.add(Box.createGlue());
-		versionPanel.add(loggedLabel);
-		versionPanel.add(emailLabel);
 
-		actionsContainer = new JPanel();
-		actionsContainer.setBorder(new EmptyBorder(10, 0, 0, 0));
-		actionsContainer.setLayout(new GridLayout(0, 1, 0, 10));
+		JPanel actionsContainer = new JPanel();
+		actionsContainer.setBorder(new EmptyBorder(10, 0, 10, 0));
+		actionsContainer.setLayout(new GridLayout(9, 1, 0, 10));
 
 		syncPanel = buildLinkPanel(IMPORT_ICON, "Import local settings", "to remote RuneLite account", () ->
 		{
@@ -173,16 +140,63 @@ public class InfoPanel extends PluginPanel
 			}
 		});
 
-		actionsContainer.add(buildLinkPanel(GITHUB_ICON, "Report an issue or", "make a suggestion", RuneLiteProperties.getGithubLink()));
-		actionsContainer.add(buildLinkPanel(DISCORD_ICON, "Talk to us on our", "discord server", RuneLiteProperties.getDiscordInvite()));
-		actionsContainer.add(buildLinkPanel(PATREON_ICON, "Become a patron to", "help support RuneLite", RuneLiteProperties.getPatreonLink()));
-		actionsContainer.add(buildLinkPanel(WIKI_ICON, "Information about", "RuneLite and plugins", RuneLiteProperties.getWikiLink()));
+		actionsContainer.add(buildLinkPanel(GITHUB_ICON, "License info", "for distribution", "https://github.com/open-osrs/runelite/blob/master/LICENSE"));
+		actionsContainer.add(buildLinkPanel(PATREON_ICON, "Patreon to support", "the OpenOSRS Devs", RuneLiteProperties.getPatreonLink()));
+		actionsContainer.add(buildLinkPanel(DISCORD_ICON, "Talk to us on our", "Discord Server", "https://discord.gg/OpenOSRS"));
+		if (plugin.isShowGithub())
+		{
+			actionsContainer.add(buildLinkPanel(GITHUB_ICON, "OpenOSRS Github", "", "https://github.com/open-osrs"));
+		}
+		if (plugin.isShowLauncher())
+		{
+			actionsContainer.add(buildLinkPanel(IMPORT_ICON, "Launcher Download", "for the latest launcher", "https://github.com/open-osrs/launcher/releases"));
+		}
+		if (plugin.isShowRuneliteDir())
+		{
+			actionsContainer.add(buildLinkPanel(FOLDER_ICON, "Open Runelite Directory", "for your .properties file", RUNELITE_DIR));
+		}
+		if (plugin.isShowLogDir())
+		{
+			actionsContainer.add(buildLinkPanel(FOLDER_ICON, "Open Logs Directory", "for bug reports", LOGS_DIR));
+		}
+		if (plugin.isShowPluginsDir())
+		{
+			actionsContainer.add(buildLinkPanel(FOLDER_ICON, "Open Plugins Directory", "for external plugins", PLUGINS_DIR));
+		}
+		if (plugin.isShowScreenshotsDir())
+		{
+			actionsContainer.add(buildLinkPanel(FOLDER_ICON, "Open Screenshots Directory", "for your screenshots", SCREENSHOT_DIR));
+		}
 
+		if (plugin.isShowPhysicalDir())
+		{
+			JPanel pathPanel = new JPanel();
+			pathPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+			pathPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+			pathPanel.setLayout(new GridLayout(0, 1));
+
+			JLabel rldirectory = new JLabel(htmlLabel("Runelite Directory: ", RUNELITE_DIRECTORY));
+			rldirectory.setFont(smallFont);
+
+			JLabel logdirectory = new JLabel(htmlLabel("Log Directory: ", LOG_DIRECTORY));
+			logdirectory.setFont(smallFont);
+
+			JLabel pluginsdirectory = new JLabel(htmlLabel("Plugins Directory: ", PLUGINS_DIRECTORY));
+			pluginsdirectory.setFont(smallFont);
+
+			JLabel screenshotsdirectory = new JLabel(htmlLabel("Screenshot Directory: ", SCREENSHOT_DIRECTORY));
+			screenshotsdirectory.setFont(smallFont);
+
+			pathPanel.add(rldirectory);
+			pathPanel.add(logdirectory);
+			pathPanel.add(pluginsdirectory);
+			pathPanel.add(screenshotsdirectory);
+
+			add(pathPanel, BorderLayout.SOUTH);
+		}
 		add(versionPanel, BorderLayout.NORTH);
 		add(actionsContainer, BorderLayout.CENTER);
 
-		updateLoggedIn();
-		eventBus.register(this);
 	}
 
 	/**
@@ -267,42 +281,16 @@ public class InfoPanel extends PluginPanel
 		return container;
 	}
 
-	private void updateLoggedIn()
-	{
-		final String name = sessionManager.getAccountSession() != null
-			? sessionManager.getAccountSession().getUsername()
-			: null;
-
-		if (name != null)
-		{
-			emailLabel.setContentType("text/plain");
-			emailLabel.setText(name);
-			loggedLabel.setText("Logged in as");
-			actionsContainer.add(syncPanel, 0);
-		}
-		else
-		{
-			emailLabel.setContentType("text/html");
-			emailLabel.setText("<a href=\"" + RUNELITE_LOGIN + "\">Login</a> to sync settings to the cloud.");
-			loggedLabel.setText("Not logged in");
-			actionsContainer.remove(syncPanel);
-		}
-	}
-
 	private static String htmlLabel(String key, String value)
 	{
 		return "<html><body style = 'color:#a5a5a5'>" + key + "<span style = 'color:white'>" + value + "</span></body></html>";
 	}
 
-	@Subscribe
-	public void onSessionOpen(SessionOpen sessionOpen)
+	/**
+	 * Builds a link panel with a given icon, text and directory to open.
+	 */
+	private JPanel buildLinkPanel(ImageIcon icon, String topText, String bottomText, File dir)
 	{
-		updateLoggedIn();
-	}
-
-	@Subscribe
-	public void onSessionClose(SessionClose e)
-	{
-		updateLoggedIn();
+		return buildLinkPanel(icon, topText, bottomText, () -> LinkBrowser.openLocalFile(dir));
 	}
 }

@@ -31,7 +31,9 @@ import java.awt.Shape;
  */
 public interface GroundObject extends TileObject
 {
-	Renderable getRenderable();
+	Entity getEntity();
+
+	Model getModel();
 
 	/**
 	 * Gets the convex hull of the objects model.

@@ -58,9 +58,10 @@ public class LootTrackerClient
 			.addPathSegment("loottracker")
 			.build();
 
+		RequestBody body = RequestBody.Companion.create(GSON.toJson(lootRecords), JSON);
 		Request request = new Request.Builder()
 			.header(RuneLiteAPI.RUNELITE_AUTH, uuid.toString())
-			.post(RequestBody.create(JSON, GSON.toJson(lootRecords)))
+			.post(body)
 			.url(url)
 			.build();
 
@@ -101,9 +102,7 @@ public class LootTrackerClient
 			}
 
 			InputStream in = response.body().byteStream();
-			return RuneLiteAPI.GSON.fromJson(new InputStreamReader(in), new TypeToken<List<LootRecord>>()
-			{
-			}.getType());
+			return RuneLiteAPI.GSON.fromJson(new InputStreamReader(in), new TypeToken<List<LootRecord>>() {}.getType());
 		}
 		catch (JsonParseException ex)
 		{

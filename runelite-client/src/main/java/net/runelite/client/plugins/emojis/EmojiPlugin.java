@@ -30,6 +30,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import joptsimple.internal.Strings;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
@@ -44,14 +45,17 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.util.ImageUtil;
 
 @PluginDescriptor(
 	name = "Emojis",
 	description = "Replaces common emoticons such as :) with their corresponding emoji in the chat",
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.MISCELLANEOUS
 )
 @Slf4j
+@Singleton
 public class EmojiPlugin extends Plugin
 {
 	private static final Pattern TAG_REGEXP = Pattern.compile("<[^>]*>");
@@ -72,7 +76,7 @@ public class EmojiPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
+	void onGameStateChanged(GameStateChanged gameStateChanged)
 	{
 		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
 		{
@@ -113,7 +117,7 @@ public class EmojiPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onChatMessage(ChatMessage chatMessage)
+	void onChatMessage(ChatMessage chatMessage)
 	{
 		if (client.getGameState() != GameState.LOGGED_IN || modIconsStart == -1)
 		{
@@ -148,7 +152,7 @@ public class EmojiPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onOverheadTextChanged(final OverheadTextChanged event)
+	private void onOverheadTextChanged(final OverheadTextChanged event)
 	{
 		if (!(event.getActor() instanceof Player))
 		{

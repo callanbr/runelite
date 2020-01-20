@@ -35,12 +35,15 @@ import net.runelite.api.Actor;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import static net.runelite.api.MenuOpcode.MENU_ACTION_DEPRIORITIZE_OFFSET;
+import static net.runelite.api.MenuOpcode.NPC_SECOND_OPTION;
 import net.runelite.api.NPC;
 import net.runelite.api.NpcID;
 import net.runelite.api.Varbits;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.InteractingChanged;
+import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
 import net.runelite.client.chat.ChatColorType;
@@ -49,18 +52,24 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 @PluginDescriptor(
 	name = "Corporeal Beast",
 	description = "Show damage statistics and highlight dark energy cores",
-	tags = {"bosses", "combat", "pve", "overlay"}
+	tags = {"bosses", "combat", "pve", "overlay"},
+	type = PluginType.PVM
 )
 @Slf4j
 public class CorpPlugin extends Plugin
 {
+	private static final String ATTACK = "Attack";
+	private static final String DARK_ENERGY_CORE = "Dark energy core";
+
 	@Getter(AccessLevel.PACKAGE)
 	private NPC corp;
 
@@ -93,6 +102,10 @@ public class CorpPlugin extends Plugin
 	@Inject
 	private CorpConfig config;
 
+	private boolean leftClickCore;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showDamage;
+
 	@Provides
 	CorpConfig getConfig(ConfigManager configManager)
 	{
@@ -100,14 +113,16 @@ public class CorpPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+		updateConfig();
+
 		overlayManager.add(corpOverlay);
 		overlayManager.add(coreOverlay);
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		overlayManager.remove(corpOverlay);
 		overlayManager.remove(coreOverlay);
@@ -119,7 +134,7 @@ public class CorpPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
+	private void onGameStateChanged(GameStateChanged gameStateChanged)
 	{
 		if (gameStateChanged.getGameState() == GameState.LOADING)
 		{
@@ -128,7 +143,7 @@ public class CorpPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onNpcSpawned(NpcSpawned npcSpawned)
+	private void onNpcSpawned(NpcSpawned npcSpawned)
 	{
 		NPC npc = npcSpawned.getNpc();
 
@@ -148,7 +163,7 @@ public class CorpPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onNpcDespawned(NpcDespawned npcDespawned)
+	private void onNpcDespawned(NpcDespawned npcDespawned)
 	{
 		NPC npc = npcDespawned.getNpc();
 
@@ -185,7 +200,7 @@ public class CorpPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onHitsplatApplied(HitsplatApplied hitsplatApplied)
+	private void onHitsplatApplied(HitsplatApplied hitsplatApplied)
 	{
 		Actor actor = hitsplatApplied.getActor();
 
@@ -204,16 +219,51 @@ public class CorpPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onInteractingChanged(InteractingChanged interactingChanged)
+	private void onInteractingChanged(InteractingChanged interactingChanged)
 	{
 		Actor source = interactingChanged.getSource();
 		Actor target = interactingChanged.getTarget();
 
-		if (corp == null || target != corp)
+		if (target != corp)
 		{
 			return;
 		}
 
 		players.add(source);
+	}
+
+	@Subscribe
+	private void onMenuEntryAdded(MenuEntryAdded event)
+	{
+		if (event.getOpcode() != NPC_SECOND_OPTION.getId()
+			|| !this.leftClickCore || !event.getOption().equals(ATTACK))
+		{
+			return;
+		}
+
+		final int npcIndex = event.getIdentifier();
+		final NPC npc = client.getCachedNPCs()[npcIndex];
+		if (npc == null || !npc.getName().equals(DARK_ENERGY_CORE))
+		{
+			return;
+		}
+
+		event.setOpcode(NPC_SECOND_OPTION.getId() + MENU_ACTION_DEPRIORITIZE_OFFSET);
+		event.setModified();
+	}
+
+	@Subscribe
+	private void onConfigChanged(ConfigChanged configChanged)
+	{
+		if (configChanged.getGroup().equals("corp"))
+		{
+			updateConfig();
+		}
+	}
+
+	private void updateConfig()
+	{
+		this.leftClickCore = config.leftClickCore();
+		this.showDamage = config.showDamage();
 	}
 }

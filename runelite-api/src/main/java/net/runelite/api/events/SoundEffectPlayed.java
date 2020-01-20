@@ -29,10 +29,11 @@ import lombok.Data;
 import net.runelite.api.Actor;
 
 @Data
-public class SoundEffectPlayed
+public class SoundEffectPlayed implements Event
 {
 	@Nullable
 	private final Actor source;
+
 	private int soundId;
 	private int delay;
 

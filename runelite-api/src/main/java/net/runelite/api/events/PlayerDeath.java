@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, Matthew Steglinski <https://github.com/sainttx>
+ * Copyright (c) 2019, HSJ <https://github.com/HSJ-OSRS>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,10 +28,10 @@ import lombok.Value;
 import net.runelite.api.Player;
 
 /**
- * An event fired when a player dies.
+ * An event when a player dies.
  */
 @Value
-public class PlayerDeath
+public class PlayerDeath implements Event
 {
 	private final Player player;
 }

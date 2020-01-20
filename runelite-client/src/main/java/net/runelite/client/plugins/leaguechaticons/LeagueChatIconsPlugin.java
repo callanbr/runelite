@@ -30,19 +30,16 @@ import java.util.Arrays;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatPlayer;
-import net.runelite.api.ClanMember;
-import net.runelite.api.ClanMemberManager;
 import net.runelite.api.Client;
-import net.runelite.api.Friend;
 import net.runelite.api.GameState;
 import net.runelite.api.IconID;
 import net.runelite.api.IndexedSprite;
 import net.runelite.api.MessageNode;
-import net.runelite.api.NameableContainer;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
+import net.runelite.api.util.Text;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.callback.ClientThread;
@@ -51,8 +48,8 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.WorldService;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.util.ImageUtil;
-import net.runelite.client.util.Text;
 import net.runelite.http.api.worlds.World;
 import net.runelite.http.api.worlds.WorldResult;
 import net.runelite.http.api.worlds.WorldType;
@@ -60,7 +57,8 @@ import net.runelite.http.api.worlds.WorldType;
 @PluginDescriptor(
 	name = "League Chat Icons",
 	description = "Changes the chat icon for players on league worlds",
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.MISCELLANEOUS
 )
 @Slf4j
 public class LeagueChatIconsPlugin extends Plugin
@@ -115,7 +113,7 @@ public class LeagueChatIconsPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
+	private void onGameStateChanged(GameStateChanged gameStateChanged)
 	{
 		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
 		{
@@ -125,7 +123,7 @@ public class LeagueChatIconsPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onScriptCallbackEvent(ScriptCallbackEvent scriptCallbackEvent)
+	private void onScriptCallbackEvent(ScriptCallbackEvent scriptCallbackEvent)
 	{
 		if (scriptCallbackEvent.getEventName().equals(SCRIPT_EVENT_SET_CHATBOX_INPUT) && onLeagueWorld)
 		{
@@ -134,7 +132,7 @@ public class LeagueChatIconsPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onChatMessage(ChatMessage chatMessage)
+	private void onChatMessage(ChatMessage chatMessage)
 	{
 		if (client.getGameState() != GameState.LOADING && client.getGameState() != GameState.LOGGED_IN)
 		{
@@ -332,19 +330,22 @@ public class LeagueChatIconsPlugin extends Plugin
 	 */
 	private ChatPlayer getChatPlayerFromName(String name)
 	{
-		// Search clan members first, because if a friend is in the clan chat but their private
-		// chat is 'off', then we won't know the world
-		ClanMemberManager clanMemberManager = client.getClanMemberManager();
-		if (clanMemberManager != null)
+		if (client.isClanMember(name))
 		{
-			ClanMember clanMember = clanMemberManager.findByName(name);
-			if (clanMember != null)
-			{
-				return clanMember;
-			}
+			return Arrays.stream(client.getClanMembers())
+				.filter(clanMember -> Text.removeTags(clanMember.getUsername()).equals(name))
+				.findFirst()
+				.orElse(null);
 		}
 
-		NameableContainer<Friend> friendContainer = client.getFriendContainer();
-		return friendContainer.findByName(name);
+		if (client.isFriended(name, true))
+		{
+			return Arrays.stream(client.getFriends())
+				.filter(friend -> Text.removeTags(friend.getName()).equals(name))
+				.findFirst()
+				.orElse(null);
+		}
+
+		return null;
 	}
 }

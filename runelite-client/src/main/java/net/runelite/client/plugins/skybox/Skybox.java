@@ -34,7 +34,6 @@ import java.io.Reader;
 import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import net.runelite.api.Client;
 
 class Skybox
 {
@@ -43,8 +42,6 @@ class Skybox
 	{
 		/**
 		 * Gets the instance template chunk data for the specified point
-		 *
-		 * @see Client#getInstanceTemplateChunks
 		 */
 		int getTemplateChunk(int cx, int cy, int plane);
 	}
@@ -352,14 +349,17 @@ class Skybox
 		}
 
 		int cv = chunks[(stride * (cy - y1)) + (cx - x1)];
+
 		if (cv == -1)
 		{
 			return -1;
 		}
+
 		if ((cv & 0x8000_0000) != 0)
 		{
 			cv = planeOverrides[(cv & 0x7FFF_FFFF) | plane];
 		}
+
 		return cv;
 	}
 

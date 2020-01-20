@@ -32,11 +32,12 @@ import java.util.Deque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.Constants;
-import net.runelite.api.ItemComposition;
+import net.runelite.api.ItemDefinition;
 import net.runelite.api.ItemID;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
@@ -56,8 +57,8 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.util.QuantityFormatter;
-import net.runelite.client.util.Text;
 import net.runelite.http.api.examine.ExamineClient;
 
 /**
@@ -68,9 +69,11 @@ import net.runelite.http.api.examine.ExamineClient;
 @PluginDescriptor(
 	name = "Examine",
 	description = "Send examine information to the API",
-	tags = {"npcs", "items", "inventory", "objects"}
+	tags = {"npcs", "items", "inventory", "objects"},
+	type = PluginType.UTILITY
 )
 @Slf4j
+@Singleton
 public class ExaminePlugin extends Plugin
 {
 	private static final Pattern X_PATTERN = Pattern.compile("^\\d+ x ");
@@ -96,44 +99,44 @@ public class ExaminePlugin extends Plugin
 	private ScheduledExecutorService executor;
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged event)
+	private void onGameStateChanged(GameStateChanged event)
 	{
 		pending.clear();
 	}
 
 	@Subscribe
-	public void onMenuOptionClicked(MenuOptionClicked event)
+	void onMenuOptionClicked(MenuOptionClicked event)
 	{
-		if (!Text.removeTags(event.getMenuOption()).equals("Examine"))
+		if (!event.getOption().equals("Examine"))
 		{
 			return;
 		}
 
 		ExamineType type;
 		int id, quantity = -1;
-		switch (event.getMenuAction())
+		switch (event.getMenuOpcode())
 		{
 			case EXAMINE_ITEM:
 			{
 				type = ExamineType.ITEM;
-				id = event.getId();
+				id = event.getIdentifier();
 
-				int widgetId = event.getWidgetId();
+				int widgetId = event.getParam1();
 				int widgetGroup = TO_GROUP(widgetId);
 				int widgetChild = TO_CHILD(widgetId);
 				Widget widget = client.getWidget(widgetGroup, widgetChild);
-				WidgetItem widgetItem = widget.getWidgetItem(event.getActionParam());
+				WidgetItem widgetItem = widget.getWidgetItem(event.getParam0());
 				quantity = widgetItem != null && widgetItem.getId() >= 0 ? widgetItem.getQuantity() : 1;
 				break;
 			}
 			case EXAMINE_ITEM_GROUND:
 				type = ExamineType.ITEM;
-				id = event.getId();
+				id = event.getIdentifier();
 				break;
 			case CC_OP_LOW_PRIORITY:
 			{
 				type = ExamineType.ITEM_BANK_EQ;
-				int[] qi = findItemFromWidget(event.getWidgetId(), event.getActionParam());
+				int[] qi = findItemFromWidget(event.getParam1(), event.getParam0());
 				if (qi == null)
 				{
 					log.debug("Examine for item with unknown widget: {}", event);
@@ -145,11 +148,11 @@ public class ExaminePlugin extends Plugin
 			}
 			case EXAMINE_OBJECT:
 				type = ExamineType.OBJECT;
-				id = event.getId();
+				id = event.getIdentifier();
 				break;
 			case EXAMINE_NPC:
 				type = ExamineType.NPC;
-				id = event.getId();
+				id = event.getIdentifier();
 				break;
 			default:
 				return;
@@ -164,7 +167,7 @@ public class ExaminePlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onChatMessage(ChatMessage event)
+	void onChatMessage(ChatMessage event)
 	{
 		ExamineType type;
 		switch (event.getType())
@@ -203,7 +206,7 @@ public class ExaminePlugin extends Plugin
 		log.debug("Got examine for {} {}: {}", pendingExamine.getType(), pendingExamine.getId(), event.getMessage());
 
 		// If it is an item, show the price of it
-		final ItemComposition itemComposition;
+		final ItemDefinition itemDefinition;
 		if (pendingExamine.getType() == ExamineType.ITEM || pendingExamine.getType() == ExamineType.ITEM_BANK_EQ)
 		{
 			final int itemId = pendingExamine.getId();
@@ -214,21 +217,21 @@ public class ExaminePlugin extends Plugin
 				return;
 			}
 
-			itemComposition = itemManager.getItemComposition(itemId);
+			itemDefinition = itemManager.getItemDefinition(itemId);
 
-			if (itemComposition != null)
+			if (itemDefinition != null)
 			{
-				final int id = itemManager.canonicalize(itemComposition.getId());
-				executor.submit(() -> getItemPrice(id, itemComposition, itemQuantity));
+				final int id = itemManager.canonicalize(itemDefinition.getId());
+				executor.submit(() -> getItemPrice(id, itemDefinition, itemQuantity));
 			}
 		}
 		else
 		{
-			itemComposition = null;
+			itemDefinition = null;
 		}
 
 		// Don't submit examine info for tradeable items, which we already have from the RS item api
-		if (itemComposition != null && itemComposition.isTradeable())
+		if (itemDefinition != null && itemDefinition.isTradeable())
 		{
 			return;
 		}
@@ -323,7 +326,7 @@ public class ExaminePlugin extends Plugin
 		return null;
 	}
 
-	private void getItemPrice(int id, ItemComposition itemComposition, int quantity)
+	private void getItemPrice(int id, ItemDefinition itemComposition, int quantity)
 	{
 		// quantity is at least 1
 		quantity = Math.max(1, quantity);
@@ -352,13 +355,14 @@ public class ExaminePlugin extends Plugin
 
 			if (gePrice > 0)
 			{
+				int finalQuantity = quantity;
 				message
 					.append(ChatColorType.NORMAL)
-					.append(" GE average ")
+					.append(" GE  ")
 					.append(ChatColorType.HIGHLIGHT)
-					.append(QuantityFormatter.formatNumber(gePrice * quantity));
+					.append(QuantityFormatter.formatNumber(gePrice * finalQuantity));
 
-				if (quantity > 1)
+				if (finalQuantity > 1)
 				{
 					message
 						.append(ChatColorType.NORMAL)
@@ -368,9 +372,30 @@ public class ExaminePlugin extends Plugin
 						.append(ChatColorType.NORMAL)
 						.append("ea)");
 				}
-			}
 
-			if (alchPrice > 0)
+				message
+					.append(ChatColorType.NORMAL)
+					.append(" HA value ")
+					.append(ChatColorType.HIGHLIGHT)
+					.append(QuantityFormatter.formatNumber(alchPrice * finalQuantity));
+
+				if (finalQuantity > 1)
+				{
+					message
+						.append(ChatColorType.NORMAL)
+						.append(" (")
+						.append(ChatColorType.HIGHLIGHT)
+						.append(QuantityFormatter.formatNumber(alchPrice))
+						.append(ChatColorType.NORMAL)
+						.append("ea)");
+				}
+
+				chatMessageManager.queue(QueuedMessage.builder()
+					.type(ChatMessageType.ITEM_EXAMINE)
+					.runeLiteFormattedMessage(message.build())
+					.build());
+			}
+			else
 			{
 				message
 					.append(ChatColorType.NORMAL)
@@ -388,12 +413,12 @@ public class ExaminePlugin extends Plugin
 						.append(ChatColorType.NORMAL)
 						.append("ea)");
 				}
-			}
 
-			chatMessageManager.queue(QueuedMessage.builder()
-				.type(ChatMessageType.ITEM_EXAMINE)
-				.runeLiteFormattedMessage(message.build())
-				.build());
+				chatMessageManager.queue(QueuedMessage.builder()
+					.type(ChatMessageType.ITEM_EXAMINE)
+					.runeLiteFormattedMessage(message.build())
+					.build());
+			}
 		}
 	}
 

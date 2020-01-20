@@ -39,7 +39,8 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
-import net.runelite.api.MenuAction;
+import net.runelite.api.ItemID;
+import net.runelite.api.MenuOpcode;
 import net.runelite.api.Player;
 import net.runelite.api.Point;
 import net.runelite.api.coords.WorldPoint;
@@ -54,9 +55,11 @@ import net.runelite.client.Notifier;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.OverlayMenuClicked;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.plugins.xptracker.XpTrackerPlugin;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
@@ -65,13 +68,20 @@ import net.runelite.client.ui.overlay.OverlayMenuEntry;
 	name = "Woodcutting",
 	description = "Show woodcutting statistics and/or bird nest notifications",
 	tags = {"birds", "nest", "notifications", "overlay", "skilling", "wc"},
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.SKILLING
 )
 @PluginDependency(XpTrackerPlugin.class)
 @Slf4j
 public class WoodcuttingPlugin extends Plugin
 {
 	private static final Pattern WOOD_CUT_PATTERN = Pattern.compile("You get (?:some|an)[\\w ]+(?:logs?|mushrooms)\\.");
+
+	@Getter
+	private final Set<GameObject> treeObjects = new HashSet<>();
+
+	@Getter(AccessLevel.PACKAGE)
+	private final List<TreeRespawn> respawns = new ArrayList<>();
 
 	@Inject
 	private Notifier notifier;
@@ -91,18 +101,19 @@ public class WoodcuttingPlugin extends Plugin
 	@Inject
 	private WoodcuttingConfig config;
 
+	@Inject
+	private ItemManager itemManager;
+
 	@Getter
 	private WoodcuttingSession session;
 
 	@Getter
 	private Axe axe;
 
-	@Getter
-	private final Set<GameObject> treeObjects = new HashSet<>();
-
-	@Getter(AccessLevel.PACKAGE)
-	private final List<TreeRespawn> respawns = new ArrayList<>();
 	private boolean recentlyLoggedIn;
+	private int treeTypeID;
+	@Getter(AccessLevel.PACKAGE)
+	private int gpEarned;
 	private int currentPlane;
 
 	@Provides
@@ -130,10 +141,10 @@ public class WoodcuttingPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onOverlayMenuClicked(OverlayMenuClicked overlayMenuClicked)
+	private void onOverlayMenuClicked(OverlayMenuClicked overlayMenuClicked)
 	{
 		OverlayMenuEntry overlayMenuEntry = overlayMenuClicked.getEntry();
-		if (overlayMenuEntry.getMenuAction() == MenuAction.RUNELITE_OVERLAY
+		if (overlayMenuEntry.getMenuOpcode() == MenuOpcode.RUNELITE_OVERLAY
 			&& overlayMenuClicked.getEntry().getOption().equals(WoodcuttingOverlay.WOODCUTTING_RESET)
 			&& overlayMenuClicked.getOverlay() == overlay)
 		{
@@ -142,7 +153,7 @@ public class WoodcuttingPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameTick(GameTick gameTick)
+	private void onGameTick(GameTick gameTick)
 	{
 		recentlyLoggedIn = false;
 		currentPlane = client.getPlane();
@@ -165,7 +176,7 @@ public class WoodcuttingPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onChatMessage(ChatMessage event)
+	void onChatMessage(ChatMessage event)
 	{
 		if (event.getType() == ChatMessageType.SPAM || event.getType() == ChatMessageType.GAMEMESSAGE)
 		{
@@ -174,9 +185,13 @@ public class WoodcuttingPlugin extends Plugin
 				if (session == null)
 				{
 					session = new WoodcuttingSession();
+					gpEarned = 0;
 				}
 
 				session.setLastLogCut();
+
+				typeOfLogCut(event.getMessage());
+				gpEarned += itemManager.getItemPrice(treeTypeID);
 			}
 
 			if (event.getMessage().contains("A bird's nest falls out of the tree") && config.showNestNotification())
@@ -187,7 +202,7 @@ public class WoodcuttingPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameObjectSpawned(final GameObjectSpawned event)
+	private void onGameObjectSpawned(final GameObjectSpawned event)
 	{
 		GameObject gameObject = event.getGameObject();
 		Tree tree = Tree.findTree(gameObject.getId());
@@ -199,7 +214,7 @@ public class WoodcuttingPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameObjectDespawned(final GameObjectDespawned event)
+	private void onGameObjectDespawned(final GameObjectDespawned event)
 	{
 		final GameObject object = event.getGameObject();
 
@@ -227,13 +242,13 @@ public class WoodcuttingPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameObjectChanged(final GameObjectChanged event)
+	private void onGameObjectChanged(final GameObjectChanged event)
 	{
 		treeObjects.remove(event.getGameObject());
 	}
 
 	@Subscribe
-	public void onGameStateChanged(final GameStateChanged event)
+	private void onGameStateChanged(final GameStateChanged event)
 	{
 		switch (event.getGameState())
 		{
@@ -252,7 +267,7 @@ public class WoodcuttingPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onAnimationChanged(final AnimationChanged event)
+	private void onAnimationChanged(final AnimationChanged event)
 	{
 		Player local = client.getLocalPlayer();
 
@@ -266,6 +281,50 @@ public class WoodcuttingPlugin extends Plugin
 		if (axe != null)
 		{
 			this.axe = axe;
+		}
+	}
+
+	private void typeOfLogCut(String message)
+	{
+		if (message.contains("mushrooms."))
+		{
+			return; //TO DO Add valuation for scullicep mushroom cutting.
+		}
+		else if (message.contains("oak"))
+		{
+			treeTypeID = ItemID.OAK_LOGS;
+		}
+		else if (message.contains("willow"))
+		{
+			treeTypeID = ItemID.WILLOW_LOGS;
+		}
+		else if (message.contains("yew"))
+		{
+			treeTypeID = ItemID.YEW_LOGS;
+		}
+		else if (message.contains("redwood"))
+		{
+			treeTypeID = ItemID.REDWOOD_LOGS;
+		}
+		else if (message.contains("magic"))
+		{
+			treeTypeID = ItemID.MAGIC_LOGS;
+		}
+		else if (message.contains("teak"))
+		{
+			treeTypeID = ItemID.TEAK_LOGS;
+		}
+		else if (message.contains("mahogany"))
+		{
+			treeTypeID = ItemID.MAHOGANY_LOGS;
+		}
+		else if (message.contains("maple"))
+		{
+			treeTypeID = ItemID.MAPLE_LOGS;
+		}
+		else
+		{
+			treeTypeID = ItemID.LOGS;
 		}
 	}
 }

@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import javax.swing.SwingUtilities;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -43,7 +44,7 @@ import net.runelite.api.GameState;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
-import net.runelite.api.MenuAction;
+import net.runelite.api.MenuOpcode;
 import net.runelite.api.NPC;
 import net.runelite.api.NpcID;
 import net.runelite.api.Player;
@@ -51,19 +52,20 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
-import net.runelite.api.events.NpcDespawned;
-import net.runelite.api.events.NpcSpawned;
-import net.runelite.client.events.ConfigChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.events.NpcDespawned;
+import net.runelite.api.events.NpcSpawned;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -72,9 +74,11 @@ import net.runelite.client.util.ImageUtil;
 @PluginDescriptor(
 	name = "Kourend Library",
 	description = "Show where the books are found in the Kourend Library",
-	tags = {"arceuus", "magic", "runecrafting", "overlay", "panel"}
+	tags = {"arceuus", "magic", "runecrafting", "overlay", "panel"},
+	type = PluginType.MINIGAME
 )
 @Slf4j
+@Singleton
 public class KourendLibraryPlugin extends Plugin
 {
 	private static final Pattern BOOK_EXTRACTOR = Pattern.compile("'<col=0000ff>(.*)</col>'");
@@ -99,10 +103,10 @@ public class KourendLibraryPlugin extends Plugin
 	private KourendLibraryOverlay overlay;
 
 	@Inject
-	private KourendLibraryTutorialOverlay tutorialOverlay;
+	private KourendLibraryConfig config;
 
 	@Inject
-	private KourendLibraryConfig config;
+	private KourendLibraryTutorialOverlay tutorialOverlay;
 
 	@Inject
 	private ItemManager itemManager;
@@ -117,6 +121,14 @@ public class KourendLibraryPlugin extends Plugin
 	@Getter(AccessLevel.PACKAGE)
 	private final Set<NPC> npcsToMark = new HashSet<>();
 
+	private boolean hideButton;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean hideDuplicateBook;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean hideVarlamoreEnvoy;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showTutorialOverlay;
+
 	@Provides
 	KourendLibraryConfig provideConfig(ConfigManager configManager)
 	{
@@ -124,8 +136,14 @@ public class KourendLibraryPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+
+		hideButton = config.hideButton();
+		hideDuplicateBook = config.hideDuplicateBook();
+		hideVarlamoreEnvoy = config.hideVarlamoreEnvoy();
+		showTutorialOverlay = config.showTutorialOverlay();
+
 		Book.fillImages(itemManager);
 
 		panel = injector.getInstance(KourendLibraryPanel.class);
@@ -145,7 +163,7 @@ public class KourendLibraryPlugin extends Plugin
 
 		updatePlayerBooks();
 
-		if (!config.hideButton())
+		if (!this.hideButton)
 		{
 			clientToolbar.addNavigation(navButton);
 		}
@@ -165,7 +183,7 @@ public class KourendLibraryPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onConfigChanged(ConfigChanged ev)
+	private void onConfigChanged(ConfigChanged ev)
 	{
 		if (!KourendLibraryConfig.GROUP_KEY.equals(ev.getGroup()))
 		{
@@ -202,16 +220,16 @@ public class KourendLibraryPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onMenuOptionClicked(MenuOptionClicked menuOpt)
+	private void onMenuOptionClicked(MenuOptionClicked menuOpt)
 	{
-		if (MenuAction.GAME_OBJECT_FIRST_OPTION == menuOpt.getMenuAction() && menuOpt.getMenuTarget().contains("Bookshelf"))
+		if (MenuOpcode.GAME_OBJECT_FIRST_OPTION == menuOpt.getMenuOpcode() && menuOpt.getTarget().contains("Bookshelf"))
 		{
-			lastBookcaseClick = WorldPoint.fromScene(client, menuOpt.getActionParam(), menuOpt.getWidgetId(), client.getPlane());
+			lastBookcaseClick = WorldPoint.fromScene(client, menuOpt.getParam0(), menuOpt.getParam1(), client.getPlane());
 		}
 	}
 
 	@Subscribe
-	public void onAnimationChanged(AnimationChanged anim)
+	private void onAnimationChanged(AnimationChanged anim)
 	{
 		if (anim.getActor() == client.getLocalPlayer() && anim.getActor().getAnimation() == AnimationID.LOOKING_INTO)
 		{
@@ -220,7 +238,7 @@ public class KourendLibraryPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onChatMessage(ChatMessage event)
+	private void onChatMessage(ChatMessage event)
 	{
 		if (lastBookcaseAnimatedOn != null && event.getType() == ChatMessageType.GAMEMESSAGE)
 		{
@@ -247,7 +265,7 @@ public class KourendLibraryPlugin extends Plugin
 	public void onGameTick(GameTick tick)
 	{
 		boolean inRegion = client.getLocalPlayer().getWorldLocation().getRegionID() == REGION;
-		if (config.hideButton() && inRegion != buttonAttached)
+		if (this.hideButton && inRegion != buttonAttached)
 		{
 			SwingUtilities.invokeLater(() ->
 			{
@@ -314,7 +332,7 @@ public class KourendLibraryPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onItemContainerChanged(ItemContainerChanged itemContainerChangedEvent)
+	private void onItemContainerChanged(ItemContainerChanged itemContainerChangedEvent)
 	{
 		updatePlayerBooks();
 	}

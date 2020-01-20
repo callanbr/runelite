@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2018, Adam <Adam@sigterm.info>
+ * Copyright (c) 2019, TheStonedTurtle <https://github.com/TheStonedTurtle>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,42 +25,115 @@
  */
 package net.runelite.client.game;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import java.io.InputStream;
+import com.google.common.collect.ImmutableMap;
+import com.google.gson.stream.JsonReader;
+import io.reactivex.Completable;
+import io.reactivex.schedulers.Schedulers;
+import java.io.IOException;
 import java.io.InputStreamReader;
-import java.lang.reflect.Type;
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Singleton
 public class NPCManager
 {
-	private final Map<String, Integer> healthMap;
+	private ImmutableMap<Integer, NPCStats> statsMap;
 
 	@Inject
 	private NPCManager()
 	{
-		final Gson gson = new Gson();
-		final Type typeToken = new TypeToken<Map<String, Integer>>()
-		{
-		}.getType();
+		Completable.fromAction(this::loadStats)
+			.subscribeOn(Schedulers.computation())
+			.subscribe(
+				() -> log.debug("Loaded {} NPC stats", statsMap.size()),
+				ex -> log.warn("Error loading NPC stats", ex)
+			);
+	}
 
-		final InputStream healthFile = getClass().getResourceAsStream("/npc_health.json");
-		healthMap = gson.fromJson(new InputStreamReader(healthFile), typeToken);
+	private void loadStats() throws IOException
+	{
+		try (JsonReader reader = new JsonReader(new InputStreamReader(NPCManager.class.getResourceAsStream("/npc_stats.json"), StandardCharsets.UTF_8)))
+		{
+			ImmutableMap.Builder<Integer, NPCStats> builder = ImmutableMap.builderWithExpectedSize(2821);
+			reader.beginObject();
+
+			while (reader.hasNext())
+			{
+				builder.put(
+					Integer.parseInt(reader.nextName()),
+					NPCStats.NPC_STATS_TYPE_ADAPTER.read(reader)
+				);
+			}
+
+			reader.endObject();
+			statsMap = builder.build();
+		}
 	}
 
 	/**
-	 * Returns health for target NPC based on it's combat level and name
-	 * @param name npc name
-	 * @param combatLevel npc combat level
-	 * @return health or null if HP is unknown
+	 * Returns the {@link NPCStats} for target NPC id
+	 *
+	 * @param npcId NPC id
+	 * @return the {@link NPCStats} or null if unknown
 	 */
 	@Nullable
-	public Integer getHealth(final String name, final int combatLevel)
+	public NPCStats getStats(final int npcId)
 	{
-		return healthMap.get(name + "_" + combatLevel);
+		return statsMap.get(npcId);
+	}
+
+	/**
+	 * Returns health for target NPC ID
+	 *
+	 * @param npcId NPC id
+	 * @return health or null if unknown
+	 */
+	public int getHealth(final int npcId)
+	{
+		final NPCStats s = statsMap.get(npcId);
+		if (s == null || s.getHitpoints() == -1)
+		{
+			return -1;
+		}
+
+		return s.getHitpoints();
+	}
+
+	/**
+	 * Returns the attack speed for target NPC ID.
+	 *
+	 * @param npcId NPC id
+	 * @return attack speed in game ticks for NPC ID.
+	 */
+	public int getAttackSpeed(final int npcId)
+	{
+		final NPCStats s = statsMap.get(npcId);
+		if (s == null || s.getAttackSpeed() == -1)
+		{
+			return -1;
+		}
+
+		return s.getAttackSpeed();
+	}
+
+	/**
+	 * Returns the exp modifier for target NPC ID based on its stats.
+	 *
+	 * @param npcId NPC id
+	 * @return npcs exp modifier. Assumes default xp rate if npc stats are unknown (returns 1)
+	 */
+	public double getXpModifier(final int npcId)
+	{
+		final NPCStats s = statsMap.get(npcId);
+		if (s == null)
+		{
+			return 1;
+		}
+
+		return s.calculateXpModifier();
 	}
 }

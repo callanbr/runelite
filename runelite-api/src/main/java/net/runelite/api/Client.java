@@ -26,27 +26,26 @@ package net.runelite.api;
 
 import java.awt.Canvas;
 import java.awt.Dimension;
+import java.math.BigInteger;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import net.runelite.api.annotations.VisibleForDevtools;
-import net.runelite.api.annotations.VisibleForExternalPlugins;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.hooks.Callbacks;
 import net.runelite.api.hooks.DrawCallbacks;
 import net.runelite.api.vars.AccountType;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetConfig;
 import net.runelite.api.widgets.WidgetInfo;
 import org.slf4j.Logger;
 
 /**
  * Represents the RuneScape client.
  */
-public interface Client extends GameEngine
+public interface Client extends GameShell
 {
 	/**
 	 * The client invokes these callbacks to communicate to
@@ -62,8 +61,6 @@ public interface Client extends GameEngine
 	 * This is most useful for mixins which can't have their own.
 	 */
 	Logger getLogger();
-
-	String getBuildID();
 
 	/**
 	 * Gets a list of all valid players from the player cache.
@@ -119,10 +116,10 @@ public interface Client extends GameEngine
 	/**
 	 * Adds a new chat message to the chatbox.
 	 *
-	 * @param type the type of message
-	 * @param name the name of the player that sent the message
+	 * @param type    the type of message
+	 * @param name    the name of the player that sent the message
 	 * @param message the message contents
-	 * @param sender the sender/channel name
+	 * @param sender  the sender/channel name
 	 */
 	void addChatMessage(ChatMessageType type, String name, String message, String sender);
 
@@ -255,13 +252,11 @@ public interface Client extends GameEngine
 
 	/**
 	 * Gets the canvas height
-	 * @return
 	 */
 	int getCanvasHeight();
 
 	/**
 	 * Gets the canvas width
-	 * @return
 	 */
 	int getCanvasWidth();
 
@@ -346,9 +341,13 @@ public interface Client extends GameEngine
 	 * Gets the logged in player instance.
 	 *
 	 * @return the logged in player
+	 * <p>
+	 * (getLocalPlayerIndex returns the local index, useful for menus/interacting)
 	 */
 	@Nullable
 	Player getLocalPlayer();
+
+	int getLocalPlayerIndex();
 
 	/**
 	 * Gets the item composition corresponding to an items ID.
@@ -358,33 +357,33 @@ public interface Client extends GameEngine
 	 * @see ItemID
 	 */
 	@Nonnull
-	ItemComposition getItemDefinition(int id);
+	ItemDefinition getItemDefinition(int id);
 
 	/**
 	 * Creates an item icon sprite with passed variables.
 	 *
-	 * @param itemId the item ID
-	 * @param quantity the item quantity
-	 * @param border whether to draw a border
+	 * @param itemId      the item ID
+	 * @param quantity    the item quantity
+	 * @param border      whether to draw a border
 	 * @param shadowColor the shadow color
-	 * @param stackable whether the item is stackable
-	 * @param noted whether the item is noted
-	 * @param scale the scale of the sprite
+	 * @param stackable   whether the item is stackable
+	 * @param noted       whether the item is noted
+	 * @param scale       the scale of the sprite
 	 * @return the created sprite
 	 */
 	@Nullable
-	SpritePixels createItemSprite(int itemId, int quantity, int border, int shadowColor, int stackable, boolean noted, int scale);
+	Sprite createItemSprite(int itemId, int quantity, int border, int shadowColor, int stackable, boolean noted, int scale);
 
 	/**
 	 * Loads and creates the sprite images of the passed archive and file IDs.
 	 *
-	 * @param source the sprite index
+	 * @param source    the sprite index
 	 * @param archiveId the sprites archive ID
-	 * @param fileId the sprites file ID
+	 * @param fileId    the sprites file ID
 	 * @return the sprite image of the file
 	 */
 	@Nullable
-	SpritePixels[] getSprites(IndexDataBase source, int archiveId, int fileId);
+	Sprite[] getSprites(IndexDataBase source, int archiveId, int fileId);
 
 	/**
 	 * Gets the sprite index.
@@ -508,6 +507,13 @@ public interface Client extends GameEngine
 	int[] getWidgetPositionsY();
 
 	/**
+	 * Creates a new widget element
+	 *
+	 * @return
+	 */
+	Widget createWidget();
+
+	/**
 	 * Gets the current run energy of the logged in player.
 	 *
 	 * @return the run energy
@@ -561,6 +567,11 @@ public interface Client extends GameEngine
 	MenuEntry[] getMenuEntries();
 
 	/**
+	 * @return amount of menu entries the client has (same as client.getMenuEntries().size())
+	 */
+	int getMenuOptionCount();
+
+	/**
 	 * Sets the array of open menu entries.
 	 * <p>
 	 * This method should typically be used in the context of the {@link net.runelite.api.events.MenuOpened}
@@ -569,6 +580,12 @@ public interface Client extends GameEngine
 	 * @param entries new array of open menu entries
 	 */
 	void setMenuEntries(MenuEntry[] entries);
+
+	/**
+	 * Set the amount of menu entries the client has.
+	 * If you decrement this count, it's the same as removing the last one
+	 */
+	void setMenuOptionCount(int count);
 
 	/**
 	 * Checks whether a right-click menu is currently open.
@@ -621,6 +638,7 @@ public interface Client extends GameEngine
 	 * | |rot|     y chunk coord     |    x chunk coord    |pln|       |
 	 * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 	 * }</pre>
+	 *
 	 * @return the array of instance template chunks
 	 * @see Constants#CHUNK_SIZE
 	 * @see InstanceTemplates
@@ -646,13 +664,11 @@ public interface Client extends GameEngine
 	 *
 	 * @return local player variables
 	 */
-	@VisibleForDevtools
 	int[] getVarps();
 
 	/**
 	 * Gets an array of all client variables.
 	 */
-	@VisibleForDevtools
 	Map<Integer, Object> getVarcMap();
 
 	/**
@@ -688,42 +704,6 @@ public interface Client extends GameEngine
 	String getVar(VarClientStr varClientStr);
 
 	/**
-	 * Gets the value of a given VarPlayer.
-	 *
-	 * @param varpId the VarPlayer id
-	 * @return the value
-	 */
-	@VisibleForExternalPlugins
-	int getVarpValue(int varpId);
-
-	/**
-	 * Gets the value of a given Varbit.
-	 *
-	 * @param varbitId the varbit id
-	 * @return the value
-	 */
-	@VisibleForExternalPlugins
-	int getVarbitValue(int varbitId);
-
-	/**
-	 * Gets the value of a given VarClientInt
-	 *
-	 * @param varcIntId the VarClientInt id
-	 * @return the value
-	 */
-	@VisibleForExternalPlugins
-	int getVarcIntValue(int varcIntId);
-
-	/**
-	 * Gets the value of a given VarClientStr
-	 *
-	 * @param varcStrId the VarClientStr id
-	 * @return the value
-	 */
-	@VisibleForExternalPlugins
-	String getVarcStrValue(int varcStrId);
-
-	/**
 	 * Sets a VarClientString to the passed value
 	 */
 	void setVar(VarClientStr varClientStr, String value);
@@ -737,52 +717,48 @@ public interface Client extends GameEngine
 	 * Sets the value of a given variable.
 	 *
 	 * @param varbit the variable
-	 * @param value the new value
+	 * @param value  the new value
 	 */
 	void setVarbit(Varbits varbit, int value);
 
 	/**
 	 * Gets the value of a given variable.
 	 *
-	 * @param varps passed varbits
+	 * @param varps    passed varbits
 	 * @param varbitId the variable ID
 	 * @return the value
-	 * @see Varbits#id
+	 * @see Varbits
 	 */
-	@VisibleForDevtools
 	int getVarbitValue(int[] varps, int varbitId);
 
 	/**
 	 * Gets the value of a given VarPlayer.
 	 *
-	 * @param varps passed varps
+	 * @param varps  passed varps
 	 * @param varpId the VarpPlayer id
 	 * @return the value
 	 * @see VarPlayer#id
 	 */
-	@VisibleForDevtools
 	int getVarpValue(int[] varps, int varpId);
 
 	/**
 	 * Sets the value of a given VarPlayer.
 	 *
-	 * @param varps passed varps
+	 * @param varps  passed varps
 	 * @param varpId the VarpPlayer id
-	 * @param value the value
+	 * @param value  the value
 	 * @see VarPlayer#id
 	 */
-	@VisibleForDevtools
 	void setVarpValue(int[] varps, int varpId, int value);
 
 	/**
 	 * Sets the value of a given variable.
 	 *
-	 * @param varps passed varbits
+	 * @param varps  passed varbits
 	 * @param varbit the variable
-	 * @param value the value
-	 * @see Varbits#id
+	 * @param value  the value
+	 * @see Varbits
 	 */
-	@VisibleForDevtools
 	void setVarbitValue(int[] varps, int varbit, int value);
 
 	/**
@@ -825,8 +801,6 @@ public interface Client extends GameEngine
 
 	/**
 	 * Get the total experience of the player
-	 *
-	 * @return
 	 */
 	long getOverallExperience();
 
@@ -880,7 +854,7 @@ public interface Client extends GameEngine
 	 * @return the corresponding object composition
 	 * @see ObjectID
 	 */
-	ObjectComposition getObjectDefinition(int objectId);
+	ObjectDefinition getObjectDefinition(int objectId);
 
 	/**
 	 * Gets the NPC composition corresponding to an NPCs ID.
@@ -889,7 +863,7 @@ public interface Client extends GameEngine
 	 * @return the corresponding NPC composition
 	 * @see NpcID
 	 */
-	NPCComposition getNpcDefinition(int npcId);
+	NPCDefinition getNpcDefinition(int npcId);
 
 	/**
 	 * Gets an array of all world areas
@@ -910,7 +884,7 @@ public interface Client extends GameEngine
 	 *
 	 * @return all mini-map dots
 	 */
-	SpritePixels[] getMapDots();
+	Sprite[] getMapDots();
 
 	/**
 	 * Gets the local clients game cycle.
@@ -926,7 +900,7 @@ public interface Client extends GameEngine
 	 *
 	 * @return the map icons
 	 */
-	SpritePixels[] getMapIcons();
+	Sprite[] getMapIcons();
 
 	/**
 	 * Gets an array of mod icon sprites.
@@ -954,11 +928,11 @@ public interface Client extends GameEngine
 	 * pixels.
 	 *
 	 * @param pixels the pixels
-	 * @param width the width
+	 * @param width  the width
 	 * @param height the height
 	 * @return the sprite image
 	 */
-	SpritePixels createSpritePixels(int[] pixels, int width, int height);
+	Sprite createSprite(int[] pixels, int width, int height);
 
 	/**
 	 * Gets the location of the local player.
@@ -984,36 +958,42 @@ public interface Client extends GameEngine
 
 	/**
 	 * Gets the music volume
+	 *
 	 * @return volume 0-255 inclusive
 	 */
 	int getMusicVolume();
 
 	/**
 	 * Sets the music volume
+	 *
 	 * @param volume 0-255 inclusive
 	 */
 	void setMusicVolume(int volume);
 
 	/**
 	 * Gets the sound effect volume
+	 *
 	 * @return volume 0-127 inclusive
 	 */
 	int getSoundEffectVolume();
 
 	/**
 	 * Sets the sound effect volume
+	 *
 	 * @param volume 0-127 inclusive
 	 */
 	void setSoundEffectVolume(int volume);
 
 	/**
 	 * Gets the area sound effect volume
+	 *
 	 * @return volume 0-127 inclusive
 	 */
 	int getAreaSoundEffectVolume();
 
 	/**
 	 * Sets the area sound effect volume
+	 *
 	 * @param volume 0-127 inclusive
 	 */
 	void setAreaSoundEffectVolume(int volume);
@@ -1024,31 +1004,31 @@ public interface Client extends GameEngine
 	 * normally played.
 	 *
 	 * @param id the ID of the sound to play. Any int is allowed, but see
-	 * {@link SoundEffectID} for some common ones
+	 *           {@link SoundEffectID} for some common ones
 	 */
 	void playSoundEffect(int id);
 
 	/**
 	 * Play a sound effect from some point in the world.
 	 *
-	 * @param id the ID of the sound to play. Any int is allowed, but see
-	 * {@link SoundEffectID} for some common ones
-	 * @param x the ground coordinate on the x axis
-	 * @param y the ground coordinate on the y axis
+	 * @param id    the ID of the sound to play. Any int is allowed, but see
+	 *              {@link SoundEffectID} for some common ones
+	 * @param x     the ground coordinate on the x axis
+	 * @param y     the ground coordinate on the y axis
 	 * @param range the number of tiles away that the sound can be heard
-	 * from
+	 *              from
 	 */
 	void playSoundEffect(int id, int x, int y, int range);
 
 	/**
 	 * Play a sound effect from some point in the world.
 	 *
-	 * @param id the ID of the sound to play. Any int is allowed, but see
-	 * {@link SoundEffectID} for some common ones
-	 * @param x the ground coordinate on the x axis
-	 * @param y the ground coordinate on the y axis
+	 * @param id    the ID of the sound to play. Any int is allowed, but see
+	 *              {@link SoundEffectID} for some common ones
+	 * @param x     the ground coordinate on the x axis
+	 * @param y     the ground coordinate on the y axis
 	 * @param range the number of tiles away that the sound can be heard
-	 * from
+	 *              from
 	 * @param delay the amount of frames before the sound starts playing
 	 */
 	void playSoundEffect(int id, int x, int y, int range, int delay);
@@ -1090,6 +1070,11 @@ public interface Client extends GameEngine
 	 * @see Constants#CLIENT_TICK_LENGTH
 	 */
 	int getKeyboardIdleTicks();
+
+	/**
+	 * Returns an array of booleans relating to keys pressed.
+	 */
+	boolean[] getPressedKeys();
 
 	/**
 	 * Changes how game behaves based on memory mode. Low memory mode skips
@@ -1141,33 +1126,65 @@ public interface Client extends GameEngine
 	/**
 	 * Checks whether a player is on the friends list.
 	 *
-	 * @param name the name of the player
+	 * @param name           the name of the player
 	 * @param mustBeLoggedIn if they player is online
 	 * @return true if the player is friends
 	 */
 	boolean isFriended(String name, boolean mustBeLoggedIn);
 
 	/**
-	 * Retrieve the clan member manager
+	 * Gets the number of players in the clan chat.
 	 *
-	 * @return
+	 * @return the number of clan chat members
 	 */
-	@Nullable
-	ClanMemberManager getClanMemberManager();
+	int getClanChatCount();
 
 	/**
-	 * Retrieve the nameable container containing friends
+	 * Gets an array of players in the clan chat.
 	 *
-	 * @return
+	 * @return the clan chat members, null if not in a clan
 	 */
-	NameableContainer<Friend> getFriendContainer();
+	ClanMember[] getClanMembers();
 
 	/**
-	 * Retrieve the nameable container containing ignores
-	 *
-	 * @return
+	 * Gets the clan owner of the currently joined clan chat
 	 */
-	NameableContainer<Ignore> getIgnoreContainer();
+	String getClanOwner();
+
+	/**
+	 * Gets the clan chat name of the currently joined clan chat
+	 */
+	String getClanChatName();
+
+	/**
+	 * Gets an array of players in the friends list.
+	 *
+	 * @return the friends list
+	 */
+	Friend[] getFriends();
+
+	/**
+	 * Gets the number of friends on the friends list.
+	 */
+	int getFriendsCount();
+
+	/**
+	 * Gets an array of players on the ignore list.
+	 */
+	Ignore[] getIgnores();
+
+	/**
+	 * Gets the number of ignored players on the ignore list.
+	 */
+	int getIgnoreCount();
+
+	/**
+	 * Checks whether a player is in the same clan chat.
+	 *
+	 * @param name the name of the player
+	 * @return true if the player is in clan chat
+	 */
+	boolean isClanMember(String name);
 
 	/**
 	 * Gets the clients saved preferences.
@@ -1226,7 +1243,7 @@ public interface Client extends GameEngine
 	 * factors towards {@code zero} when stretching.
 	 *
 	 * @param state new integer scaling state
-	*/
+	 */
 	void setStretchedIntegerScaling(boolean state);
 
 	/**
@@ -1288,11 +1305,11 @@ public interface Client extends GameEngine
 	 * @param z the plane
 	 * @return the map sprite
 	 */
-	SpritePixels drawInstanceMap(int z);
+	Sprite drawInstanceMap(int z);
 
 	/**
 	 * Executes a client script from the cache
-	 *
+	 * <p>
 	 * This method must be ran on the client thread and is not reentrant
 	 *
 	 * @param args the script id, then any additional arguments to execute the script with
@@ -1404,6 +1421,20 @@ public interface Client extends GameEngine
 	void setInterpolateObjectAnimations(boolean interpolate);
 
 	/**
+	 * Checks whether animation smoothing is enabled for widgets.
+	 *
+	 * @return true if widget animation smoothing is enabled, false otherwise
+	 */
+	boolean isInterpolateWidgetAnimations();
+
+	/**
+	 * Sets the animation smoothing state for widgets.
+	 *
+	 * @param interpolate the new smoothing state
+	 */
+	void setInterpolateWidgetAnimations(boolean interpolate);
+
+	/**
 	 * Checks whether the logged in player is in an instanced region.
 	 *
 	 * @return true if the player is in instanced region, false otherwise
@@ -1481,6 +1512,48 @@ public interface Client extends GameEngine
 	void setNPCsHidden(boolean state);
 
 	/**
+	 * Increments the counter for how many times this npc has been selected to be hidden
+	 *
+	 * @param name npc name
+	 */
+	void addHiddenNpcName(String name);
+
+	/**
+	 * Decrements the counter for how many times this npc has been selected to be hidden
+	 *
+	 * @param name npc name
+	 */
+	void removeHiddenNpcName(String name);
+
+	/**
+	 * Forcibly unhides an npc by setting its counter to zero
+	 *
+	 * @param name npc name
+	 */
+	void forciblyUnhideNpcName(String name);
+
+	/**
+	 * Increments the counter for how many times this npc has been selected to be hidden on death
+	 *
+	 * @param name npc name
+	 */
+	void addHiddenNpcDeath(String name);
+
+	/**
+	 * Decrements the counter for how many times this npc has been selected to be hidden on death
+	 *
+	 * @param name npc name
+	 */
+	void removeHiddenNpcDeath(String name);
+
+	/**
+	 * Forcibly unhides a hidden-while-dead npc by setting its counter to zero
+	 *
+	 * @param name npc name
+	 */
+	void forciblyUnhideNpcDeath(String name);
+
+	/**
 	 * Sets whether 2D sprites (ie. overhead prayers) related to
 	 * the NPCs are hidden.
 	 *
@@ -1503,11 +1576,33 @@ public interface Client extends GameEngine
 	void setAttackersHidden(boolean state);
 
 	/**
+	 * Hides players input here.
+	 *
+	 * @param names the names of the players
+	 */
+	void setHideSpecificPlayers(List<String> names);
+
+	/**
 	 * Sets whether projectiles are hidden.
 	 *
 	 * @param state new projectile hidden state
 	 */
 	void setProjectilesHidden(boolean state);
+
+	/**
+	 * Sets whether dead NPCs are hidden.
+	 *
+	 * @param state new NPC hidden state
+	 */
+	void setDeadNPCsHidden(boolean state);
+
+	/**
+	 * The provided ids will not be hidden when the
+	 * entity-hider attempts to hide dead {@link NPC}'s.
+	 *
+	 * @param blacklist set of npc ids.
+	 */
+	void setBlacklistDeadNpcs(Set<Integer> blacklist);
 
 	/**
 	 * Gets an array of tile collision data.
@@ -1519,13 +1614,10 @@ public interface Client extends GameEngine
 	@Nullable
 	CollisionData[] getCollisionMaps();
 
-	@VisibleForDevtools
 	int[] getBoostedSkillLevels();
 
-	@VisibleForDevtools
 	int[] getRealSkillLevels();
 
-	@VisibleForDevtools
 	int[] getSkillExperiences();
 
 	void queueChangedSkill(Skill skill);
@@ -1536,7 +1628,7 @@ public interface Client extends GameEngine
 	 * The key value in the map corresponds to the ID of the sprite,
 	 * and the value the sprite to replace it with.
 	 */
-	Map<Integer, SpritePixels> getSpriteOverrides();
+	Map<Integer, Sprite> getSpriteOverrides();
 
 	/**
 	 * Gets a mapping of widget sprites to override.
@@ -1544,14 +1636,14 @@ public interface Client extends GameEngine
 	 * The key value in the map corresponds to the packed widget ID,
 	 * and the value the sprite to replace the widgets sprite with.
 	 */
-	Map<Integer, SpritePixels> getWidgetSpriteOverrides();
+	Map<Integer, Sprite> getWidgetSpriteOverrides();
 
 	/**
 	 * Sets the compass sprite.
 	 *
-	 * @param spritePixels the new sprite
+	 * @param Sprite the new sprite
 	 */
-	void setCompass(SpritePixels spritePixels);
+	void setCompass(Sprite Sprite);
 
 	/**
 	 * Returns widget sprite cache, to be used with {@link Client#getSpriteOverrides()}
@@ -1580,6 +1672,10 @@ public interface Client extends GameEngine
 	 * @param delay the number of game cycles to delay dragging
 	 */
 	void setInventoryDragDelay(int delay);
+
+	boolean isHdMinimapEnabled();
+
+	void setHdMinimapEnabled(boolean enabled);
 
 	/**
 	 * Gets a set of current world types that apply to the logged in world.
@@ -1622,6 +1718,7 @@ public interface Client extends GameEngine
 
 	/**
 	 * Hops using in-game world hopper widget to another world
+	 *
 	 * @param world target world to hop to
 	 */
 	void hopToWorld(World world);
@@ -1641,11 +1738,15 @@ public interface Client extends GameEngine
 	void setGpu(boolean gpu);
 
 	int get3dZoom();
+
 	int getCenterX();
+
 	int getCenterY();
 
 	int getCameraX2();
+
 	int getCameraY2();
+
 	int getCameraZ2();
 
 	TextureProvider getTextureProvider();
@@ -1655,29 +1756,24 @@ public interface Client extends GameEngine
 	void setRenderArea(boolean[][] renderArea);
 
 	int getRasterizer3D_clipMidX2();
+
 	int getRasterizer3D_clipNegativeMidX();
+
 	int getRasterizer3D_clipNegativeMidY();
+
 	int getRasterizer3D_clipMidY2();
 
 	void checkClickbox(Model model, int orientation, int pitchSin, int pitchCos, int yawSin, int yawCos, int x, int y, int z, long hash);
 
 	/**
 	 * Get the if1 widget whose item is being dragged
-	 *
-	 * @return
 	 */
 	Widget getIf1DraggedWidget();
 
 	/**
 	 * Get the item index of the item being dragged on an if1 widget
-	 * @return
 	 */
 	int getIf1DraggedItemIndex();
-
-	/**
-	 * Is a widget is in target mode?
-	 */
-	boolean getSpellSelected();
 
 	/**
 	 * Sets if a widget is in target mode
@@ -1687,18 +1783,81 @@ public interface Client extends GameEngine
 	/**
 	 * Returns client item composition cache
 	 */
-	NodeCache getItemCompositionCache();
+	NodeCache getItemDefinitionCache();
 
 	/**
 	 * Returns the array of cross sprites that appear and animate when left-clicking
 	 */
-	SpritePixels[] getCrossSprites();
+	Sprite[] getCrossSprites();
 
-	EnumComposition getEnum(int id);
+	EnumDefinition getEnum(int id);
 
 	void draw2010Menu();
 
 	void resetHealthBarCaches();
+
+	boolean getRenderSelf();
+
+	void setRenderSelf(boolean enabled);
+
+	/**
+	 * @param param0       This is SceneX for gameObject, index for items, and 0 for npc.
+	 * @param param1       This is SceneY for gameObject, static for items, and 0 for npc.
+	 * @param opcode       Menu entry Action opcode.
+	 * @param id           Targets ID
+	 * @param menuEntry    Do these actually matter?
+	 * @param targetString Do these actually matter?
+	 * @param canvasX      Canvas X Point
+	 * @param canvasY      Canvas Y Point
+	 */
+	void invokeMenuAction(int param0, int param1, int opcode, int id, String menuEntry, String targetString, int canvasX, int canvasY);
+
+	MouseRecorder getMouseRecorder();
+
+	void setPrintMenuActions(boolean b);
+
+	String getSelectedSpellName();
+
+	void setSelectedSpellName(String name);
+
+	boolean isSpellSelected();
+
+	/**
+	 * Set whether or not player attack options will be hidden for friends
+	 */
+	void setHideFriendAttackOptions(boolean yes);
+
+	/**
+	 * Set whether or not player cast options will be hidden for friends
+	 */
+	void setHideFriendCastOptions(boolean yes);
+
+	/**
+	 * Set whether or not player attack options will be hidden for clanmates
+	 */
+	void setHideClanmateAttackOptions(boolean yes);
+
+	/**
+	 * Set whether or not player cast options will be hidden for clanmates
+	 */
+	void setHideClanmateCastOptions(boolean yes);
+
+	/**
+	 * Set spells excluded from above hiding
+	 */
+	void setUnhiddenCasts(Set<String> casts);
+
+	/**
+	 * Add player to friendlist
+	 */
+	void addFriend(String name);
+
+	/**
+	 * Remove player from friendlist
+	 */
+	void removeFriend(String name);
+
+	void setModulus(BigInteger modulus);
 
 	/**
 	 * Returns the max item index + 1 from cache
@@ -1709,4 +1868,78 @@ public interface Client extends GameEngine
 	 * Makes all widgets behave as if they are {@link WidgetConfig#WIDGET_USE_TARGET}
 	 */
 	void setAllWidgetsAreOpTargetable(boolean value);
+
+	/**
+	 * Adds a MenuEntry to the current menu.
+	 */
+	void insertMenuItem(String action, String target, int opcode, int identifier, int argument1, int argument2, boolean forceLeftClick);
+
+	void setSelectedItemID(int id);
+
+	void setSelectedItemWidget(int widgetID);
+
+	void setSelectedItemSlot(int idx);
+
+	int getSelectedSpellWidget();
+
+	int getSelectedSpellChildIndex();
+
+	void setSelectedSpellWidget(int widgetID);
+
+	void setSelectedSpellChildIndex(int index);
+
+	/**
+	 * Scales values from pixels onto canvas
+	 *
+	 * @param canvas       the array we're writing to
+	 * @param pixels       pixels to draw
+	 * @param color        should be 0
+	 * @param pixelX       x index
+	 * @param pixelY       y index
+	 * @param canvasIdx    index in canvas (canvas[canvasIdx])
+	 * @param canvasOffset x offset
+	 * @param newWidth     new width
+	 * @param newHeight    new height
+	 * @param pixelWidth   pretty much horizontal scale
+	 * @param pixelHeight  pretty much vertical scale
+	 * @param oldWidth     old width
+	 * @see net.runelite.client.util.ImageUtil#resizeSprite(Client, Sprite, int, int)
+	 */
+	void scaleSprite(int[] canvas, int[] pixels, int color, int pixelX, int pixelY, int canvasIdx, int canvasOffset, int newWidth, int newHeight, int pixelWidth, int pixelHeight, int oldWidth);
+
+	/**
+	 * Get the MenuEntry at client.getMenuOptionCount() - 1
+	 * <p>
+	 * This is useful so you don't have to use getMenuEntries,
+	 * which will create a big array, when you only want to change
+	 * the left click one.
+	 */
+	MenuEntry getLeftClickMenuEntry();
+
+	/**
+	 * Set the MenuEntry at client.getMenuOptionCount() - 1
+	 * <p>
+	 * This is useful so you don't have to use setMenuEntries,
+	 * which will arraycopy a big array to several smaller arrays lol,
+	 * when you only want to change the left click one.
+	 */
+	void setLeftClickMenuEntry(MenuEntry entry);
+
+	/**
+	 * If this field is set to true, getting 5 minute logged won't show
+	 * the "You have been disconnected." message anymore.
+	 */
+	void setHideDisconnect(boolean dontShow);
+
+	/**
+	 * Sets the fields in the temporary menu entry that's saved in the client
+	 * when a inventory item is clicked and dragged.
+	 */
+	void setTempMenuEntry(MenuEntry entry);
+
+	void setShowMouseCross(boolean show);
+
+	void setMouseIdleTicks(int cycles);
+
+	void setKeyboardIdleTicks(int cycles);
 }

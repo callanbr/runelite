@@ -179,6 +179,7 @@ public class WorldMapOverlay extends Overlay
 
 	/**
 	 * Get the screen coordinates for a WorldPoint on the world map
+	 *
 	 * @param worldPoint WorldPoint to get screen coordinates of
 	 * @return Point of screen coordinates of the center of the world point
 	 */
@@ -191,7 +192,7 @@ public class WorldMapOverlay extends Overlay
 			return null;
 		}
 
-		Float pixelsPerTile = ro.getWorldMapZoom();
+		float pixelsPerTile = ro.getWorldMapZoom();
 
 		Widget map = client.getWidget(WidgetInfo.WORLD_MAP_VIEW);
 		if (map != null)
@@ -228,8 +229,8 @@ public class WorldMapOverlay extends Overlay
 	 * Gets a clip area which excludes the area of widgets which overlay the world map.
 	 *
 	 * @param baseRectangle The base area to clip from
-	 * @return              An {@link Area} representing <code>baseRectangle</code>, with the area
-	 *                      of visible widgets overlaying the world map clipped from it.
+	 * @return An {@link Area} representing <code>baseRectangle</code>, with the area
+	 * of visible widgets overlaying the world map clipped from it.
 	 */
 	private Area getWorldMapClipArea(Rectangle baseRectangle)
 	{

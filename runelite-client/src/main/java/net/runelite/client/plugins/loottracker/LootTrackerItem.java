@@ -24,6 +24,7 @@
  */
 package net.runelite.client.plugins.loottracker;
 
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -31,17 +32,17 @@ import lombok.Setter;
 @AllArgsConstructor
 class LootTrackerItem
 {
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final int id;
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final String name;
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final int quantity;
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final long gePrice;
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final long haPrice;
-	@Getter
-	@Setter
+	@Getter(AccessLevel.PACKAGE)
+	@Setter(AccessLevel.PACKAGE)
 	private boolean ignored;
 }

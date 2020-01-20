@@ -2,16 +2,16 @@
  * Copyright (c) 2018, Kruithne <kruithne@gmail.com>
  * Copyright (c) 2018, Psikoi <https://github.com/psikoi>
  * All rights reserved.
- *
+ * <p>
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- *
+ * <p>
  * 1. Redistributions of source code must retain the above copyright notice, this
- *    list of conditions and the following disclaimer.
+ * list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ * <p>
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -56,6 +56,8 @@ import net.runelite.client.ui.DynamicGridLayout;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.IconTextField;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 
 class SkillCalculator extends JPanel
 {
@@ -69,7 +71,7 @@ class SkillCalculator extends JPanel
 	private final List<UIActionSlot> uiActionSlots = new ArrayList<>();
 	private final CacheSkillData cacheSkillData = new CacheSkillData();
 	private final UICombinedActionSlot combinedActionSlot;
-	private final ArrayList<UIActionSlot> combinedActionSlots = new ArrayList<>();
+	private final List<UIActionSlot> combinedActionSlots = new ArrayList<>();
 	private final List<JCheckBox> bonusCheckBoxes = new ArrayList<>();
 	private final IconTextField searchBar = new IconTextField();
 
@@ -79,6 +81,7 @@ class SkillCalculator extends JPanel
 	private int targetLevel = currentLevel + 1;
 	private int targetXP = Experience.getXpForLevel(targetLevel);
 	private float xpFactor = 1.0f;
+	private float lastBonus = 0.0f;
 
 	SkillCalculator(Client client, UICalculatorInputArea uiInput, SpriteManager spriteManager, ItemManager itemManager)
 	{
@@ -220,17 +223,23 @@ class SkillCalculator extends JPanel
 	{
 		if (skillData.getBonuses() != null)
 		{
+			List<JCheckBox> uiCheckBoxList = new ArrayList<>();
+			lastBonus = 0.0f;
+
 			for (SkillDataBonus bonus : skillData.getBonuses())
 			{
-				JPanel checkboxPanel = buildCheckboxPanel(bonus);
+				Pair<JPanel, List<JCheckBox>> combinedCheckboxPanel = buildCheckboxPanel(bonus, uiCheckBoxList);
+				JPanel checkboxPanel = combinedCheckboxPanel.getKey();
+				uiCheckBoxList = combinedCheckboxPanel.getValue();
 
 				add(checkboxPanel);
-				add(Box.createRigidArea(new Dimension(0, 5)));
 			}
+
+			add(Box.createRigidArea(new Dimension(0, 5)));
 		}
 	}
 
-	private JPanel buildCheckboxPanel(SkillDataBonus bonus)
+	private Pair<JPanel, List<JCheckBox>> buildCheckboxPanel(SkillDataBonus bonus, List<JCheckBox> uiCheckBoxList)
 	{
 		JPanel uiOption = new JPanel(new BorderLayout());
 		JLabel uiLabel = new JLabel(bonus.getName());
@@ -242,33 +251,41 @@ class SkillCalculator extends JPanel
 		uiOption.setBorder(BorderFactory.createEmptyBorder(3, 7, 3, 0));
 		uiOption.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 
-		// Adjust XP bonus depending on check-state of the boxes.
-		uiCheckbox.addActionListener(event -> adjustCheckboxes(uiCheckbox, bonus));
-
-		uiCheckbox.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
-
-		uiOption.add(uiLabel, BorderLayout.WEST);
-		uiOption.add(uiCheckbox, BorderLayout.EAST);
-		bonusCheckBoxes.add(uiCheckbox);
-
-		return uiOption;
-	}
-
-	private void adjustCheckboxes(JCheckBox target, SkillDataBonus bonus)
-	{
-		adjustXPBonus(0);
-		bonusCheckBoxes.forEach(otherSelectedCheckbox ->
+		JCheckBox uiCheckBox = new JCheckBox();
+		uiCheckBox.setBackground(ColorScheme.MEDIUM_GRAY_COLOR);
+		uiCheckBox.addActionListener(e ->
 		{
-			if (otherSelectedCheckbox != target)
+			if (uiCheckBox.isSelected())
 			{
-				otherSelectedCheckbox.setSelected(false);
+				adjustXPBonus(uiCheckBox.isSelected(), bonus.getValue());
+				lastBonus = bonus.getValue();
+
+				for (JCheckBox checkBox : uiCheckBoxList)
+				{
+					if (checkBox != uiCheckBox)
+					{
+						checkBox.setSelected(false);
+					}
+				}
 			}
+			else if (xpFactor > 1.0)
+			{
+				xpFactor = 1.0f;
+				lastBonus = 0.0f;
+				calculate();
+			}
+
+			updateCombinedAction();
 		});
 
-		if (target.isSelected())
-		{
-			adjustXPBonus(bonus.getValue());
-		}
+		uiCheckBoxList.add(uiCheckBox);
+
+		uiOption.add(uiCheckBox, BorderLayout.EAST);
+
+		uiOption.add(uiLabel, BorderLayout.WEST);
+		bonusCheckBoxes.add(uiCheckbox);
+
+		return new ImmutablePair<>(uiOption, uiCheckBoxList);
 	}
 
 	private void renderActionSlots()
@@ -367,9 +384,16 @@ class SkillCalculator extends JPanel
 		calculate();
 	}
 
-	private void adjustXPBonus(float value)
+	private void adjustXPBonus(boolean addBonus, float value)
 	{
-		xpFactor = 1f + value;
+		clearLastBonus();
+		xpFactor += addBonus ? value : -value;
+		calculate();
+	}
+
+	private void clearLastBonus()
+	{
+		xpFactor -= lastBonus;
 		calculate();
 	}
 

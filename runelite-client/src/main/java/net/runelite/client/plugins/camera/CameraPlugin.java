@@ -26,16 +26,15 @@
  */
 package net.runelite.client.plugins.camera;
 
-import com.google.common.primitives.Ints;
+import com.google.inject.Inject;
 import com.google.inject.Provides;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.util.Arrays;
-import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import net.runelite.api.Client;
-import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.MenuOpcode;
 import net.runelite.api.ScriptID;
 import net.runelite.api.VarPlayer;
 import net.runelite.api.events.ClientTick;
@@ -52,12 +51,15 @@ import net.runelite.client.input.MouseListener;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
+import net.runelite.client.util.MiscUtils;
 
 @PluginDescriptor(
-	name = "Camera",
+	name = "Camera Zoom",
 	description = "Expands zoom limit, provides vertical camera, and remaps mouse input keys",
 	tags = {"zoom", "limit", "vertical", "click", "mouse"},
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.MISCELLANEOUS
 )
 public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 {
@@ -71,11 +73,22 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 	// flags used to store the mousedown states
 	private boolean rightClick;
 	private boolean middleClick;
+	private boolean innerLimit;
+	private boolean relaxCameraPitch;
+	private boolean rightClickMovesCamera;
+	private boolean ignoreExamine;
+	private boolean middleClickMenu;
+	private boolean compassLook;
+	private ControlFunction controlFunction;
+	private int outerLimit;
+	private int ctrlZoomValue;
+	private int zoomIncrement;
+
 	/**
 	 * Whether or not the current menu has any non-ignored menu entries
 	 */
 	private boolean menuHasEntries;
-	
+
 	@Inject
 	private Client client;
 
@@ -100,10 +113,12 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 	@Override
 	protected void startUp()
 	{
+		updateConfig();
 		rightClick = false;
 		middleClick = false;
 		menuHasEntries = false;
-		client.setCameraPitchRelaxerEnabled(config.relaxCameraPitch());
+
+		client.setCameraPitchRelaxerEnabled(this.relaxCameraPitch);
 		keyManager.registerKeyListener(this);
 		mouseManager.registerMouseListener(this);
 	}
@@ -120,7 +135,7 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 	@Subscribe
 	public void onMenuEntryAdded(MenuEntryAdded menuEntryAdded)
 	{
-		if (menuEntryAdded.getType() == MenuAction.CC_OP.getId() && menuEntryAdded.getOption().equals(LOOK_NORTH) && config.compassLook())
+		if (menuEntryAdded.getOpcode() == MenuOpcode.CC_OP.getId() && menuEntryAdded.getOption().equals(LOOK_NORTH) && this.compassLook)
 		{
 			MenuEntry[] menuEntries = client.getMenuEntries();
 			int len = menuEntries.length;
@@ -144,14 +159,14 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 		m.setOption(option);
 		m.setTarget(lookNorth.getTarget());
 		m.setIdentifier(identifier);
-		m.setType(MenuAction.CC_OP.getId());
-		m.setParam0(lookNorth.getActionParam0());
-		m.setParam1(lookNorth.getActionParam1());
+		m.setOpcode(MenuOpcode.CC_OP.getId());
+		m.setParam0(lookNorth.getParam0());
+		m.setParam1(lookNorth.getParam1());
 		return m;
 	}
 
 	@Subscribe
-	public void onScriptCallbackEvent(ScriptCallbackEvent event)
+	private void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
 		if (client.getIndexScripts().isOverlayOutdated())
 		{
@@ -163,32 +178,32 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 		int[] intStack = client.getIntStack();
 		int intStackSize = client.getIntStackSize();
 
-		if (!controlDown && "scrollWheelZoom".equals(event.getEventName()) && config.controlFunction() == ControlFunction.CONTROL_TO_ZOOM)
+		if (!controlDown && "scrollWheelZoom".equals(event.getEventName()) && this.controlFunction == ControlFunction.CONTROL_TO_ZOOM)
 		{
 			intStack[intStackSize - 1] = 1;
 		}
 
-		if ("innerZoomLimit".equals(event.getEventName()) && config.innerLimit())
+		if ("innerZoomLimit".equals(event.getEventName()) && this.innerLimit)
 		{
-			intStack[intStackSize - 1] = CameraConfig.INNER_ZOOM_LIMIT;
+			intStack[intStackSize - 1] = config.INNER_ZOOM_LIMIT;
 			return;
 		}
 
 		if ("outerZoomLimit".equals(event.getEventName()))
 		{
-			int outerLimit = Ints.constrainToRange(config.outerLimit(), CameraConfig.OUTER_LIMIT_MIN, CameraConfig.OUTER_LIMIT_MAX);
+			int outerLimit = MiscUtils.clamp(this.outerLimit, CameraConfig.OUTER_LIMIT_MIN, CameraConfig.OUTER_LIMIT_MAX);
 			int outerZoomLimit = 128 - outerLimit;
 			intStack[intStackSize - 1] = outerZoomLimit;
 			return;
 		}
 
-		if ("scrollWheelZoomIncrement".equals(event.getEventName()) && config.zoomIncrement() != DEFAULT_ZOOM_INCREMENT)
+		if ("scrollWheelZoomIncrement".equals(event.getEventName()) && this.zoomIncrement != DEFAULT_ZOOM_INCREMENT)
 		{
-			intStack[intStackSize - 1] = config.zoomIncrement();
+			intStack[intStackSize - 1] = this.zoomIncrement;
 			return;
 		}
 
-		if (config.innerLimit())
+		if (this.innerLimit)
 		{
 			// This lets the options panel's slider have an exponential rate
 			final double exponent = 2.d;
@@ -215,7 +230,7 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 	}
 
 	@Subscribe
-	public void onFocusChanged(FocusChanged event)
+	private void onFocusChanged(FocusChanged event)
 	{
 		if (!event.isFocused())
 		{
@@ -224,9 +239,14 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 	}
 
 	@Subscribe
-	public void onConfigChanged(ConfigChanged ev)
+	private void onConfigChanged(ConfigChanged event)
 	{
-		client.setCameraPitchRelaxerEnabled(config.relaxCameraPitch());
+		if (!event.getGroup().equals("zoom"))
+		{
+			return;
+		}
+		client.setCameraPitchRelaxerEnabled(this.relaxCameraPitch);
+		updateConfig();
 	}
 
 	@Override
@@ -250,9 +270,9 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 		{
 			controlDown = false;
 
-			if (config.controlFunction() == ControlFunction.CONTROL_TO_RESET)
+			if (this.controlFunction == ControlFunction.CONTROL_TO_RESET)
 			{
-				final int zoomValue = Ints.constrainToRange(config.ctrlZoomValue(), CameraConfig.OUTER_LIMIT_MIN, CameraConfig.INNER_ZOOM_LIMIT);
+				final int zoomValue = MiscUtils.clamp(this.ctrlZoomValue, config.OUTER_LIMIT_MIN, config.INNER_ZOOM_LIMIT);
 				clientThread.invokeLater(() -> client.runScript(ScriptID.CAMERA_DO_ZOOM, zoomValue, zoomValue));
 			}
 		}
@@ -265,8 +285,7 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 	{
 		for (MenuEntry menuEntry : menuEntries)
 		{
-			MenuAction action = MenuAction.of(menuEntry.getType());
-			switch (action)
+			switch (menuEntry.getMenuOpcode())
 			{
 				case CANCEL:
 				case WALK:
@@ -276,7 +295,7 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 				case EXAMINE_ITEM_GROUND:
 				case EXAMINE_ITEM:
 				case CC_OP_LOW_PRIORITY:
-					if (config.ignoreExamine())
+					if (this.ignoreExamine)
 					{
 						break;
 					}
@@ -306,7 +325,7 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 	@Override
 	public MouseEvent mousePressed(MouseEvent mouseEvent)
 	{
-		if (SwingUtilities.isRightMouseButton(mouseEvent) && config.rightClickMovesCamera())
+		if (SwingUtilities.isRightMouseButton(mouseEvent) && this.rightClickMovesCamera)
 		{
 			boolean oneButton = client.getVar(VarPlayer.MOUSE_BUTTONS) == 1;
 			// Only move the camera if there is nothing at the menu, or if
@@ -328,7 +347,7 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 					MouseEvent.BUTTON2);
 			}
 		}
-		else if (SwingUtilities.isMiddleMouseButton((mouseEvent)) && config.middleClickMenu())
+		else if (SwingUtilities.isMiddleMouseButton((mouseEvent)) && this.middleClickMenu)
 		{
 			// Set the middleClick flag to true so we can release it later in mouseReleased()
 			middleClick = true;
@@ -418,4 +437,18 @@ public class CameraPlugin extends Plugin implements KeyListener, MouseListener
 		return mouseEvent;
 	}
 	// endregion
+
+	private void updateConfig()
+	{
+		this. innerLimit = config.innerLimit();
+		this.relaxCameraPitch = config.relaxCameraPitch();
+		this.rightClickMovesCamera = config.rightClickMovesCamera();
+		this.ignoreExamine = config.ignoreExamine();
+		this.middleClickMenu = config.middleClickMenu();
+		this.compassLook = config.compassLook();
+		this.controlFunction = config.controlFunction();
+		this.outerLimit = config.outerLimit();
+		this.ctrlZoomValue = config.ctrlZoomValue();
+		this.zoomIncrement = config.zoomIncrement();
+	}
 }

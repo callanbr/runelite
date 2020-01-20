@@ -24,6 +24,7 @@
  */
 package net.runelite.client.plugins.experiencedrop;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import net.runelite.api.Prayer;
 import static net.runelite.api.Prayer.*;
@@ -50,9 +51,9 @@ enum XpPrayer
 	XP_RIGOUR(RIGOUR, RANGE),
 	XP_AUGURY(AUGURY, MAGIC);
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final Prayer prayer;
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final PrayerType type;
 
 	XpPrayer(Prayer prayer, PrayerType type)

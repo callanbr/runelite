@@ -40,10 +40,10 @@ public enum VarClientInt
 {
 	TOOLTIP_TIMEOUT(1),
 
-	/**
-	 * 0 = no tooltip displayed
-	 * 1 = tooltip displaying
-	 */
+/**
+ * 0 = no tooltip displayed
+ * 1 = tooltip displaying
+*/
 	TOOLTIP_VISIBLE(2),
 
 	/**
@@ -54,7 +54,11 @@ public enum VarClientInt
 
 	MEMBERSHIP_STATUS(103),
 
-	INVENTORY_TAB(171),
+	/**
+	 * The currently open interface tab
+	 * @see net.runelite.api.vars.InterfaceTab
+	 */
+	INTERFACE_TAB(171),
 
 	WORLD_MAP_SEARCH_FOCUSED(190);
 

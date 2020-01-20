@@ -59,8 +59,7 @@ public class FarmingTracker
 	private final Map<Tab, Long> completionTimes = new EnumMap<>(Tab.class);
 
 	@Inject
-	private FarmingTracker(Client client, ItemManager itemManager, ConfigManager configManager,
-		TimeTrackingConfig config, FarmingWorld farmingWorld)
+	private FarmingTracker(Client client, ItemManager itemManager, ConfigManager configManager, TimeTrackingConfig config, FarmingWorld farmingWorld)
 	{
 		this.client = client;
 		this.itemManager = itemManager;
@@ -174,7 +173,7 @@ public class FarmingTracker
 					value = Integer.parseInt(parts[0]);
 					unixTime = Long.parseLong(parts[1]);
 				}
-				catch (NumberFormatException e)
+				catch (NumberFormatException ignored)
 				{
 				}
 			}

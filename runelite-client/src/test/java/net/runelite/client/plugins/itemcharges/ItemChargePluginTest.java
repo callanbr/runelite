@@ -38,6 +38,7 @@ import net.runelite.api.ItemContainer;
 import net.runelite.api.ItemID;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.client.Notifier;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.ui.overlay.OverlayManager;
 import org.junit.Before;
@@ -88,6 +89,10 @@ public class ItemChargePluginTest
 	@Bind
 	private ItemChargeConfig config;
 
+	@Mock
+	@Bind
+	private OpenOSRSConfig openOSRSConfig;
+
 	@Inject
 	private ItemChargePlugin itemChargePlugin;
 
@@ -130,7 +135,6 @@ public class ItemChargePluginTest
 		verify(config).ringOfForging(eq(140));
 		reset(config);
 
-		when(config.ringOfForging()).thenReturn(90);
 		// Create equipment inventory with ring of forging
 		ItemContainer equipmentItemContainer = mock(ItemContainer.class);
 		when(client.getItemContainer(eq(InventoryID.EQUIPMENT))).thenReturn(equipmentItemContainer);
@@ -141,7 +145,7 @@ public class ItemChargePluginTest
 		// Run message
 		chatMessage = new ChatMessage(null, ChatMessageType.GAMEMESSAGE, "", USED_RING_OF_FORGING, "", 0);
 		itemChargePlugin.onChatMessage(chatMessage);
-		verify(config).ringOfForging(eq(89));
+		verify(config).ringOfForging(eq(139));
 		reset(config);
 
 		chatMessage = new ChatMessage(null, ChatMessageType.GAMEMESSAGE, "", BREAK_RING_OF_FORGING, "", 0);

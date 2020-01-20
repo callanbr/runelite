@@ -29,5 +29,5 @@ enum LootType
 	UNKNOWN,
 	DROPPED,
 	PVP,
-	PVM;
+	PVM
 }

@@ -27,6 +27,7 @@ package net.runelite.client.plugins.poh;
 import com.google.common.collect.ImmutableMap;
 import java.awt.image.BufferedImage;
 import java.util.Map;
+import lombok.AccessLevel;
 import lombok.Getter;
 import static net.runelite.api.NullObjectID.*;
 import static net.runelite.api.ObjectID.*;
@@ -90,9 +91,9 @@ public enum PohIcons
 
 	private static final Map<Integer, PohIcons> minimapIcons;
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final String imageResource;
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final int[] Ids;
 
 	private BufferedImage image;

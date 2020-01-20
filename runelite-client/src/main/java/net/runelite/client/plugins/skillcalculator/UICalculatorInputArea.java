@@ -32,20 +32,21 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
+import lombok.AccessLevel;
 import lombok.Getter;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.components.FlatTextField;
 
-@Getter
-class UICalculatorInputArea extends JPanel
+@Getter(AccessLevel.PUBLIC)
+public class UICalculatorInputArea extends JPanel
 {
 	private final JTextField uiFieldCurrentLevel;
 	private final JTextField uiFieldCurrentXP;
 	private final JTextField uiFieldTargetLevel;
 	private final JTextField uiFieldTargetXP;
 
-	UICalculatorInputArea()
+	public UICalculatorInputArea()
 	{
 		setLayout(new GridLayout(2, 2, 7, 7));
 		uiFieldCurrentLevel = addComponent("Current Level");
@@ -59,7 +60,7 @@ class UICalculatorInputArea extends JPanel
 		return getInput(uiFieldCurrentLevel);
 	}
 
-	void setCurrentLevelInput(int value)
+	public void setCurrentLevelInput(int value)
 	{
 		setInput(uiFieldCurrentLevel, value);
 	}
@@ -69,7 +70,7 @@ class UICalculatorInputArea extends JPanel
 		return getInput(uiFieldCurrentXP);
 	}
 
-	void setCurrentXPInput(Object value)
+	public void setCurrentXPInput(Object value)
 	{
 		setInput(uiFieldCurrentXP, value);
 	}
@@ -79,7 +80,7 @@ class UICalculatorInputArea extends JPanel
 		return getInput(uiFieldTargetLevel);
 	}
 
-	void setTargetLevelInput(Object value)
+	public void setTargetLevelInput(Object value)
 	{
 		setInput(uiFieldTargetLevel, value);
 	}
@@ -89,7 +90,7 @@ class UICalculatorInputArea extends JPanel
 		return getInput(uiFieldTargetXP);
 	}
 
-	void setTargetXPInput(Object value)
+	public void setTargetXPInput(Object value)
 	{
 		setInput(uiFieldTargetXP, value);
 	}

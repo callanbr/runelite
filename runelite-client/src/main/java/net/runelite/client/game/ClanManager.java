@@ -31,13 +31,13 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.ClanMember;
-import net.runelite.api.ClanMemberManager;
 import net.runelite.api.ClanMemberRank;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
@@ -45,9 +45,9 @@ import net.runelite.api.IndexedSprite;
 import net.runelite.api.SpriteID;
 import net.runelite.api.events.ClanChanged;
 import net.runelite.api.events.GameStateChanged;
-import net.runelite.client.eventbus.Subscribe;
+import net.runelite.api.util.Text;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.util.ImageUtil;
-import net.runelite.client.util.Text;
 
 @Singleton
 public class ClanManager
@@ -79,30 +79,36 @@ public class ClanManager
 			@Override
 			public ClanMemberRank load(@Nonnull String key)
 			{
-				final ClanMemberManager clanMemberManager = client.getClanMemberManager();
-				if (clanMemberManager == null)
+				final ClanMember[] clanMembersArr = client.getClanMembers();
+
+				if (clanMembersArr == null || clanMembersArr.length == 0)
 				{
 					return ClanMemberRank.UNRANKED;
 				}
 
-				ClanMember clanMember = clanMemberManager.findByName(sanitize(key));
-				return clanMember != null ? clanMember.getRank() : ClanMemberRank.UNRANKED;
+				return Arrays.stream(clanMembersArr)
+					.filter(Objects::nonNull)
+					.filter(clanMember -> sanitize(clanMember.getUsername()).equals(sanitize(key)))
+					.map(ClanMember::getRank)
+					.findAny()
+					.orElse(ClanMemberRank.UNRANKED);
 			}
 		});
 
 	private int offset;
 
 	@Inject
-	private ClanManager(Client client, SpriteManager spriteManager)
+	private ClanManager(
+		final Client client,
+		final SpriteManager spriteManager,
+		final EventBus eventbus
+	)
 	{
 		this.client = client;
 		this.spriteManager = spriteManager;
-	}
 
-	public boolean isClanMember(String name)
-	{
-		ClanMemberManager clanMemberManager = client.getClanMemberManager();
-		return clanMemberManager != null && clanMemberManager.findByName(name) != null;
+		eventbus.subscribe(GameStateChanged.class, this, this::onGameStateChanged);
+		eventbus.subscribe(ClanChanged.class, this, this::onClanChanged);
 	}
 
 	public ClanMemberRank getRank(String playerName)
@@ -126,8 +132,7 @@ public class ClanManager
 		return offset + clanMemberRank.ordinal() - 1;
 	}
 
-	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
+	private void onGameStateChanged(GameStateChanged gameStateChanged)
 	{
 		if (gameStateChanged.getGameState() == GameState.LOGIN_SCREEN && offset == 0)
 		{
@@ -135,8 +140,7 @@ public class ClanManager
 		}
 	}
 
-	@Subscribe
-	public void onClanChanged(ClanChanged clanChanged)
+	private void onClanChanged(ClanChanged clanChanged)
 	{
 		clanRanksCache.invalidateAll();
 	}

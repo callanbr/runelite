@@ -35,6 +35,7 @@ import net.runelite.api.Skill;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.StatChanged;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.game.NPCManager;
 import net.runelite.client.game.SkillIconManager;
 import net.runelite.client.ui.ClientToolbar;
@@ -78,6 +79,10 @@ public class XpTrackerPluginTest
 	@Bind
 	private OverlayManager overlayManager;
 
+	@Mock
+	@Bind
+	private OpenOSRSConfig openOSRSConfig;
+
 	@Before
 	public void before()
 	{
@@ -98,7 +103,7 @@ public class XpTrackerPluginTest
 		xpTrackerPlugin.onGameStateChanged(gameStateChanged);
 		when(client.getSkillExperience(Skill.ATTACK)).thenReturn(42);
 		// Initialize tracker
-		xpTrackerPlugin.onGameTick(new GameTick());
+		xpTrackerPlugin.onGameTick(GameTick.INSTANCE);
 
 		// Gain attack xp
 		StatChanged statChanged = new StatChanged(
@@ -114,7 +119,7 @@ public class XpTrackerPluginTest
 		// Flag initialization of tracker
 		xpTrackerPlugin.onGameStateChanged(gameStateChanged);
 		// Initialize tracker
-		xpTrackerPlugin.onGameTick(new GameTick());
+		xpTrackerPlugin.onGameTick(GameTick.INSTANCE);
 
 		// Start at 42 xp, gain of 58 xp, offline gain of 41900 xp - offset start XP: 42 + 41900
 		XpStateSingle skillState = xpTrackerPlugin.getSkillState(Skill.ATTACK);

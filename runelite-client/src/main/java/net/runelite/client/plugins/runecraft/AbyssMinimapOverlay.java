@@ -25,6 +25,11 @@
 package net.runelite.client.plugins.runecraft;
 
 import com.google.inject.Inject;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.util.HashMap;
+import java.util.Map;
 import net.runelite.api.Client;
 import net.runelite.api.DecorativeObject;
 import net.runelite.api.Perspective;
@@ -33,11 +38,6 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.util.HashMap;
-import java.util.Map;
 
 class AbyssMinimapOverlay extends Overlay
 {
@@ -46,24 +46,22 @@ class AbyssMinimapOverlay extends Overlay
 	private final Map<AbyssRifts, BufferedImage> abyssIcons = new HashMap<>();
 	private final Client client;
 	private final RunecraftPlugin plugin;
-	private final RunecraftConfig config;
 	private final ItemManager itemManager;
 
 	@Inject
-	AbyssMinimapOverlay(Client client, RunecraftPlugin plugin, RunecraftConfig config, ItemManager itemManager)
+	AbyssMinimapOverlay(Client client, RunecraftPlugin plugin, ItemManager itemManager)
 	{
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.ABOVE_WIDGETS);
 		this.client = client;
 		this.plugin = plugin;
-		this.config = config;
 		this.itemManager = itemManager;
 	}
 
 	@Override
 	public Dimension render(Graphics2D graphics)
 	{
-		if (!config.showRifts())
+		if (!plugin.isShowRifts())
 		{
 			return null;
 		}

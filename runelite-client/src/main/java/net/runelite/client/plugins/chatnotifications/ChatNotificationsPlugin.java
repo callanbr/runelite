@@ -28,35 +28,44 @@ package net.runelite.client.plugins.chatnotifications;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.inject.Provides;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import static java.util.regex.Pattern.quote;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.MessageNode;
 import net.runelite.api.events.ChatMessage;
-import net.runelite.client.events.ConfigChanged;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.util.Text;
 import net.runelite.client.Notifier;
 import net.runelite.client.RuneLiteProperties;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.util.Text;
+import net.runelite.client.plugins.PluginType;
 
 @PluginDescriptor(
 	name = "Chat Notifications",
 	description = "Highlight and notify you of chat messages",
 	tags = {"duel", "messages", "notifications", "trade", "username"},
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.MISCELLANEOUS
 )
+@Singleton
 public class ChatNotificationsPlugin extends Plugin
 {
+	// Private message cache used to avoid duplicate notifications from ChatHistory.
+	private final Set<Integer> privateMessageHashes = new HashSet<>();
+
 	@Inject
 	private Client client;
 
@@ -73,6 +82,56 @@ public class ChatNotificationsPlugin extends Plugin
 	private Pattern usernameMatcher = null;
 	private String usernameReplacer = "";
 	private Pattern highlightMatcher = null;
+	private boolean highlightOwnName;
+	private String highlightWordsString;
+	private boolean notifyOnOwnName;
+	private boolean notifyOnHighlight;
+	private boolean notifyOnTrade;
+	private boolean notifyOnDuel;
+	private boolean notifyOnPm;
+
+	/**
+	 * Get the last color tag from a string, or null if there was none
+	 *
+	 * @param str
+	 * @return
+	 */
+	private static String getLastColor(String str)
+	{
+		int colIdx = str.lastIndexOf("<col=");
+		int colEndIdx = str.lastIndexOf("</col>");
+
+		if (colEndIdx > colIdx)
+		{
+			// ends in a </col> which resets the color to normal
+			return "<col" + ChatColorType.NORMAL + ">";
+		}
+
+		if (colIdx == -1)
+		{
+			return null; // no color
+		}
+
+		int closeIdx = str.indexOf('>', colIdx);
+		if (closeIdx == -1)
+		{
+			return null; // unclosed col tag
+		}
+
+		return str.substring(colIdx, closeIdx + 1); // include the >
+	}
+
+	/**
+	 * Strip color tags from a string.
+	 *
+	 * @param str
+	 * @return
+	 */
+	@VisibleForTesting
+	static String stripColor(String str)
+	{
+		return str.replaceAll("(<col=[0-9a-f]+>|</col>)", "");
+	}
 
 	@Provides
 	ChatNotificationsConfig provideConfig(ConfigManager configManager)
@@ -83,11 +142,19 @@ public class ChatNotificationsPlugin extends Plugin
 	@Override
 	public void startUp()
 	{
+		updateConfig();
+
 		updateHighlights();
 	}
 
+	@Override
+	public void shutDown()
+	{
+		this.privateMessageHashes.clear();
+	}
+
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged event)
+	private void onGameStateChanged(GameStateChanged event)
 	{
 		switch (event.getGameState())
 		{
@@ -99,10 +166,11 @@ public class ChatNotificationsPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onConfigChanged(ConfigChanged event)
+	private void onConfigChanged(ConfigChanged event)
 	{
 		if (event.getGroup().equals("chatnotification"))
 		{
+			updateConfig();
 			updateHighlights();
 		}
 	}
@@ -111,9 +179,9 @@ public class ChatNotificationsPlugin extends Plugin
 	{
 		highlightMatcher = null;
 
-		if (!config.highlightWordsString().trim().equals(""))
+		if (!this.highlightWordsString.trim().equals(""))
 		{
-			List<String> items = Text.fromCSV(config.highlightWordsString());
+			List<String> items = Text.fromCSV(this.highlightWordsString);
 			String joined = items.stream()
 				.map(Text::escapeJagex) // we compare these strings to the raw Jagex ones
 				.map(this::quoteAndIgnoreColor) // regex escape and ignore nested colors in the target message
@@ -125,7 +193,7 @@ public class ChatNotificationsPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onChatMessage(ChatMessage chatMessage)
+	void onChatMessage(ChatMessage chatMessage)
 	{
 		MessageNode messageNode = chatMessage.getMessageNode();
 		boolean update = false;
@@ -133,13 +201,13 @@ public class ChatNotificationsPlugin extends Plugin
 		switch (chatMessage.getType())
 		{
 			case TRADEREQ:
-				if (chatMessage.getMessage().contains("wishes to trade with you.") && config.notifyOnTrade())
+				if (chatMessage.getMessage().contains("wishes to trade with you.") && this.notifyOnTrade)
 				{
 					notifier.notify(chatMessage.getMessage());
 				}
 				break;
 			case CHALREQ_TRADE:
-				if (chatMessage.getMessage().contains("wishes to duel with you.") && config.notifyOnDuel())
+				if (chatMessage.getMessage().contains("wishes to duel with you.") && this.notifyOnDuel)
 				{
 					notifier.notify(chatMessage.getMessage());
 				}
@@ -151,6 +219,19 @@ public class ChatNotificationsPlugin extends Plugin
 					return;
 				}
 				break;
+			case PRIVATECHAT:
+			case MODPRIVATECHAT:
+				if (this.notifyOnPm)
+				{
+					int messageHash = this.buildMessageHash(chatMessage);
+					if (this.privateMessageHashes.contains(messageHash))
+					{
+						return;
+					}
+					this.privateMessageHashes.add(messageHash);
+					notifier.notify("Private message received from " + chatMessage.getName());
+				}
+				break;
 		}
 
 		if (usernameMatcher == null && client.getLocalPlayer() != null && client.getLocalPlayer().getName() != null)
@@ -160,7 +241,7 @@ public class ChatNotificationsPlugin extends Plugin
 			usernameReplacer = "<col" + ChatColorType.HIGHLIGHT.name() + "><u>" + username + "</u><col" + ChatColorType.NORMAL.name() + ">";
 		}
 
-		if (config.highlightOwnName() && usernameMatcher != null)
+		if (this.highlightOwnName && usernameMatcher != null)
 		{
 			Matcher matcher = usernameMatcher.matcher(messageNode.getValue());
 			if (matcher.find())
@@ -168,7 +249,7 @@ public class ChatNotificationsPlugin extends Plugin
 				messageNode.setValue(matcher.replaceAll(usernameReplacer));
 				update = true;
 
-				if (config.notifyOnOwnName())
+				if (this.notifyOnOwnName)
 				{
 					sendNotification(chatMessage);
 				}
@@ -214,7 +295,7 @@ public class ChatNotificationsPlugin extends Plugin
 				matcher.appendTail(stringBuffer);
 				messageNode.setValue(stringBuffer.toString());
 
-				if (config.notifyOnHighlight())
+				if (this.notifyOnHighlight)
 				{
 					sendNotification(chatMessage);
 				}
@@ -228,6 +309,11 @@ public class ChatNotificationsPlugin extends Plugin
 		}
 	}
 
+	private int buildMessageHash(ChatMessage message)
+	{
+		return (message.getName() + message.getMessage()).hashCode();
+	}
+
 	private void sendNotification(ChatMessage message)
 	{
 		String name = Text.removeTags(message.getName());
@@ -238,7 +324,7 @@ public class ChatNotificationsPlugin extends Plugin
 		{
 			stringBuilder.append('[').append(sender).append("] ");
 		}
-		
+
 		if (!Strings.isNullOrEmpty(name))
 		{
 			stringBuilder.append(name).append(": ");
@@ -247,6 +333,17 @@ public class ChatNotificationsPlugin extends Plugin
 		stringBuilder.append(Text.removeTags(message.getMessage()));
 		String notification = stringBuilder.toString();
 		notifier.notify(notification);
+	}
+
+	private void updateConfig()
+	{
+		this.highlightOwnName = config.highlightOwnName();
+		this.highlightWordsString = config.highlightWordsString();
+		this.notifyOnOwnName = config.notifyOnOwnName();
+		this.notifyOnHighlight = config.notifyOnHighlight();
+		this.notifyOnTrade = config.notifyOnTrade();
+		this.notifyOnDuel = config.notifyOnDuel();
+		this.notifyOnPm = config.notifyOnPm();
 	}
 
 	private String quoteAndIgnoreColor(String str)
@@ -261,48 +358,5 @@ public class ChatNotificationsPlugin extends Plugin
 		}
 
 		return stringBuilder.toString();
-	}
-
-	/**
-	 * Get the last color tag from a string, or null if there was none
-	 *
-	 * @param str
-	 * @return
-	 */
-	private static String getLastColor(String str)
-	{
-		int colIdx = str.lastIndexOf("<col=");
-		int colEndIdx = str.lastIndexOf("</col>");
-
-		if (colEndIdx > colIdx)
-		{
-			// ends in a </col> which resets the color to normal
-			return "<col" + ChatColorType.NORMAL + ">";
-		}
-
-		if (colIdx == -1)
-		{
-			return null; // no color
-		}
-
-		int closeIdx = str.indexOf('>', colIdx);
-		if (closeIdx == -1)
-		{
-			return null; // unclosed col tag
-		}
-
-		return str.substring(colIdx, closeIdx + 1); // include the >
-	}
-
-	/**
-	 * Strip color tags from a string.
-	 *
-	 * @param str
-	 * @return
-	 */
-	@VisibleForTesting
-	static String stripColor(String str)
-	{
-		return str.replaceAll("(<col=[0-9a-f]+>|</col>)", "");
 	}
 }

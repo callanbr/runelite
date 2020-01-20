@@ -143,23 +143,23 @@ public interface ScreenshotConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "playerDeath",
-		name = "Screenshot Deaths",
-		description = "Configures whether or not screenshots are automatically taken when you die.",
+		keyName = "friendDeath",
+		name = "Friend Deaths",
+		description = "Configures whether or not screenshots are automatically taken when a clanmate or a friend near you dies.",
 		position = 10
 	)
-	default boolean screenshotPlayerDeath()
+	default boolean screenshotFriendDeath()
 	{
 		return false;
 	}
 
 	@ConfigItem(
-		keyName = "friendDeath",
-		name = "Screenshot Friend Deaths",
-		description = "Configures whether or not screenshots are automatically taken when friends or clan members die.",
+		keyName = "playerDeath",
+		name = "Screenshot Deaths",
+		description = "Configures whether or not screenshots are automatically taken when you die.",
 		position = 11
 	)
-	default boolean screenshotFriendDeath()
+	default boolean screenshotPlayerDeath()
 	{
 		return false;
 	}

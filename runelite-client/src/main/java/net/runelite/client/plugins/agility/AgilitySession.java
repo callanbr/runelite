@@ -25,6 +25,7 @@
 package net.runelite.client.plugins.agility;
 
 import java.time.Instant;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import net.runelite.api.Client;
@@ -32,8 +33,8 @@ import net.runelite.api.Experience;
 import net.runelite.api.Skill;
 import net.runelite.api.VarPlayer;
 
-@Getter
-@Setter
+@Getter(AccessLevel.PACKAGE)
+@Setter(AccessLevel.PACKAGE)
 class AgilitySession
 {
 	private final Courses course;
@@ -42,7 +43,7 @@ class AgilitySession
 	private int lapsTillLevel;
 	private int lapsTillGoal;
 
-	AgilitySession(Courses course)
+	AgilitySession(final Courses course)
 	{
 		this.course = course;
 	}

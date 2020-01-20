@@ -38,9 +38,9 @@ import net.runelite.client.plugins.puzzlesolver.solver.heuristics.Heuristic;
 public class IDAStarMM extends IDAStar
 {
 	private PuzzleState currentState;
-	private List<PuzzleState> stateList = new ArrayList<>();
-	private List<List<Integer>> validRowNumbers = new ArrayList<>();
-	private List<List<Integer>> validColumnNumbers = new ArrayList<>();
+	private final List<PuzzleState> stateList = new ArrayList<>();
+	private final List<List<Integer>> validRowNumbers = new ArrayList<>();
+	private final List<List<Integer>> validColumnNumbers = new ArrayList<>();
 
 	public IDAStarMM(Heuristic heuristic)
 	{
@@ -213,7 +213,7 @@ public class IDAStarMM extends IDAStar
 							Point locSwap = new Point(locBlank.getX(), locBlank.getY() + 1);
 							swap(locBlank, locSwap);
 						}
-						else if (distY <= -1)
+						else
 						{
 							Point locSwap = new Point(locBlank.getX(), locBlank.getY() - 1);
 							swap(locBlank, locSwap);
@@ -239,7 +239,7 @@ public class IDAStarMM extends IDAStar
 							Point locSwap = new Point(locBlank.getX() + 1, locBlank.getY());
 							swap(locBlank, locSwap);
 						}
-						else if (distX <= -1)
+						else
 						{
 							Point locSwap = new Point(locBlank.getX() - 1, locBlank.getY());
 							swap(locBlank, locSwap);
@@ -632,7 +632,7 @@ public class IDAStarMM extends IDAStar
 
 	/**
 	 * Assumes locBlank is first point for swap and locVal is last point for swap
-	 *
+	 * <p>
 	 * swap(locBlank, loc1);
 	 * swap(loc1, loc2);
 	 * swap(loc2, locVal);

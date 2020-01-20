@@ -38,6 +38,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
+import lombok.AccessLevel;
 import lombok.Getter;
 import net.runelite.client.plugins.screenmarkers.ScreenMarkerOverlay;
 import net.runelite.client.plugins.screenmarkers.ScreenMarkerPlugin;
@@ -63,16 +64,16 @@ public class ScreenMarkerPluginPanel extends PluginPanel
 
 	private final ScreenMarkerPlugin plugin;
 
-	@Getter
+	@Getter(AccessLevel.PUBLIC)
 	private Color selectedColor = DEFAULT_BORDER_COLOR;
 
-	@Getter
+	@Getter(AccessLevel.PUBLIC)
 	private Color selectedFillColor = DEFAULT_FILL_COLOR;
 
-	@Getter
+	@Getter(AccessLevel.PUBLIC)
 	private int selectedBorderThickness = DEFAULT_BORDER_THICKNESS;
 
-	@Getter
+	@Getter(AccessLevel.PUBLIC)
 	private ScreenMarkerCreationPanel creationPanel;
 
 	static

@@ -28,14 +28,16 @@ import java.awt.image.BufferedImage;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.swing.SwingUtilities;
-import net.runelite.api.MenuAction;
+import net.runelite.api.MenuOpcode;
 import net.runelite.client.config.ChatColorConfig;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.OverlayMenuClicked;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.Overlay;
@@ -62,6 +64,9 @@ public class ConfigPlugin extends Plugin
 	private RuneLiteConfig runeLiteConfig;
 
 	@Inject
+	private OpenOSRSConfig openOSRSConfig;
+
+	@Inject
 	private ChatColorConfig chatColorConfig;
 
 	private PluginListPanel pluginListPanel;
@@ -72,12 +77,17 @@ public class ConfigPlugin extends Plugin
 	protected void startUp() throws Exception
 	{
 		pluginListPanel = pluginListPanelProvider.get();
-		pluginListPanel.addFakePlugin(new PluginConfigurationDescriptor(
-				"RuneLite", "RuneLite client settings", new String[]{"client"},
+		pluginListPanel.addFakePlugin(
+			new PluginConfigurationDescriptor(
+				"OpenOSRS", "OpenOSRS client settings", PluginType.IMPORTANT, new String[]{"client"},
+				null, openOSRSConfig, configManager.getConfigDescriptor(openOSRSConfig)
+			),
+			new PluginConfigurationDescriptor(
+				"RuneLite", "RuneLite client settings", PluginType.IMPORTANT, new String[]{"client"},
 				null, runeLiteConfig, configManager.getConfigDescriptor(runeLiteConfig)
 			),
 			new PluginConfigurationDescriptor(
-				"Chat Color", "Recolor chat text", new String[]{"colour", "messages"},
+				"Chat Color", "Recolor chat text", PluginType.MISCELLANEOUS, new String[]{"colour", "messages"},
 				null, chatColorConfig, configManager.getConfigDescriptor(chatColorConfig)
 			));
 		pluginListPanel.rebuildPluginList();
@@ -104,7 +114,7 @@ public class ConfigPlugin extends Plugin
 	public void onOverlayMenuClicked(OverlayMenuClicked overlayMenuClicked)
 	{
 		OverlayMenuEntry overlayMenuEntry = overlayMenuClicked.getEntry();
-		if (overlayMenuEntry.getMenuAction() == MenuAction.RUNELITE_OVERLAY_CONFIG)
+		if (overlayMenuEntry.getMenuOpcode() == MenuOpcode.RUNELITE_OVERLAY_CONFIG)
 		{
 			Overlay overlay = overlayMenuClicked.getOverlay();
 			Plugin plugin = overlay.getPlugin();

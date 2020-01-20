@@ -24,72 +24,73 @@
  */
 package net.runelite.client;
 
-import com.google.gson.JsonParseException;
+import io.reactivex.Completable;
+import io.reactivex.Observable;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.UUID;
 import net.runelite.http.api.RuneLiteAPI;
 import okhttp3.HttpUrl;
 import okhttp3.Request;
 import okhttp3.Response;
-import okhttp3.ResponseBody;
 
 class SessionClient
 {
-	UUID open() throws IOException
+	Observable<UUID> openSession()
 	{
-		HttpUrl url = RuneLiteAPI.getSessionBase().newBuilder()
+		final HttpUrl url = RuneLiteAPI.getSessionBase().newBuilder()
+			.addPathSegment("new")
 			.build();
 
-		Request request = new Request.Builder()
-			.url(url)
-			.build();
-
-		try (Response response = RuneLiteAPI.CLIENT.newCall(request).execute())
+		return Observable.fromCallable(() ->
 		{
-			ResponseBody body = response.body();
-			
-			InputStream in = body.byteStream();
-			return RuneLiteAPI.GSON.fromJson(new InputStreamReader(in), UUID.class);
-		}
-		catch (JsonParseException | IllegalArgumentException ex) // UUID.fromString can throw IllegalArgumentException
-		{
-			throw new IOException(ex);
-		}
-	}
+			Request request = new Request.Builder()
+				.url(url)
+				.build();
 
-	void ping(UUID uuid) throws IOException
-	{
-		HttpUrl url = RuneLiteAPI.getSessionBase().newBuilder()
-			.addPathSegment("ping")
-			.addQueryParameter("session", uuid.toString())
-			.build();
-
-		Request request = new Request.Builder()
-			.url(url)
-			.build();
-
-		try (Response response = RuneLiteAPI.CLIENT.newCall(request).execute())
-		{
-			if (!response.isSuccessful())
+			try (Response response = RuneLiteAPI.CLIENT.newCall(request).execute())
 			{
-				throw new IOException("Unsuccessful ping");
+				return RuneLiteAPI.GSON.fromJson(response.body().string(), UUID.class);
 			}
-		}
+		});
 	}
 
-	void delete(UUID uuid) throws IOException
+	Completable pingSession(UUID uuid)
 	{
-		HttpUrl url = RuneLiteAPI.getSessionBase().newBuilder()
+		final HttpUrl url = RuneLiteAPI.getSessionBase().newBuilder()
+			.addPathSegment("ping")
+			.addQueryParameter("uuid", uuid.toString())
+			.build();
+
+		return Completable.fromAction(() ->
+		{
+			Request request = new Request.Builder()
+				.url(url)
+				.build();
+
+			try (Response response = RuneLiteAPI.CLIENT.newCall(request).execute())
+			{
+				if (!response.isSuccessful())
+				{
+					throw new IOException("Unsuccesful ping");
+				}
+			}
+		});
+	}
+
+	Completable delete(UUID uuid)
+	{
+		final HttpUrl url = RuneLiteAPI.getSessionBase().newBuilder()
 			.addQueryParameter("session", uuid.toString())
 			.build();
 
-		Request request = new Request.Builder()
-			.delete()
-			.url(url)
-			.build();
+		return Completable.fromAction(() ->
+		{
+			Request request = new Request.Builder()
+				.delete()
+				.url(url)
+				.build();
 
-		RuneLiteAPI.CLIENT.newCall(request).execute().close();
+			RuneLiteAPI.CLIENT.newCall(request).execute().close();
+		});
 	}
 }

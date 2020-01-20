@@ -28,6 +28,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
 import net.runelite.api.events.FocusChanged;
@@ -47,6 +48,7 @@ import net.runelite.client.ui.overlay.OverlayUtil;
  * This locks "FPS:" into one position (the far top right corner of the canvas),
  * along with a locked position for the FPS value.
  */
+@Singleton
 public class FpsOverlay extends Overlay
 {
 	private static final int Y_OFFSET = 1;
@@ -54,17 +56,17 @@ public class FpsOverlay extends Overlay
 	private static final String FPS_STRING = " FPS";
 
 	// Local dependencies
-	private final FpsConfig config;
 	private final Client client;
+	private final FpsConfig config;
 
 	// Often changing values
 	private boolean isFocused = true;
 
 	@Inject
-	private FpsOverlay(FpsConfig config, Client client)
+	private FpsOverlay(final FpsConfig config, final Client client)
 	{
-		this.config = config;
 		this.client = client;
+		this.config = config;
 		setLayer(OverlayLayer.ABOVE_WIDGETS);
 		setPriority(OverlayPriority.HIGH);
 		setPosition(OverlayPosition.DYNAMIC);
@@ -102,7 +104,7 @@ public class FpsOverlay extends Overlay
 		{
 			xOffset += logoutButton.getWidth();
 		}
-		
+
 		final String text = client.getFPS() + FPS_STRING;
 		final int textWidth = graphics.getFontMetrics().stringWidth(text);
 		final int textHeight = graphics.getFontMetrics().getAscent() - graphics.getFontMetrics().getDescent();

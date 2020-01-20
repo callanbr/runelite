@@ -25,12 +25,14 @@
 package net.runelite.api;
 
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * A menu entry in a right-click menu.
  */
 @Data
-public class MenuEntry
+@NoArgsConstructor
+public class MenuEntry implements Cloneable
 {
 	/**
 	 * The option text added to the menu (ie. "Walk here", "Use").
@@ -49,8 +51,9 @@ public class MenuEntry
 	private int identifier;
 	/**
 	 * The action the entry will trigger.
+	 * {@link net.runelite.api.MenuOpcode}
 	 */
-	private int type;
+	private int opcode;
 	/**
 	 * An additional parameter for the action.
 	 */
@@ -66,4 +69,36 @@ public class MenuEntry
 	 * This is used  for shift click
 	 */
 	private boolean forceLeftClick;
+
+	public MenuEntry(String option, String target, int identifier, int opcode, int param0, int param1, boolean forceLeftClick)
+	{
+		this.option = option;
+		this.target = target;
+		this.identifier = identifier;
+		this.opcode = opcode;
+		this.param0 = param0;
+		this.param1 = param1;
+		this.forceLeftClick = forceLeftClick;
+	}
+
+	@Override
+	public MenuEntry clone()
+	{
+		try
+		{
+			return (MenuEntry) super.clone();
+		}
+		catch (CloneNotSupportedException ex)
+		{
+			throw new RuntimeException(ex);
+		}
+	}
+
+	/**
+	 * Get opcode, but as it's enum counterpart
+	 */
+	public MenuOpcode getMenuOpcode()
+	{
+		return MenuOpcode.of(getOpcode());
+	}
 }

@@ -25,21 +25,20 @@
 package net.runelite.client.plugins.wiki;
 
 import com.google.common.primitives.Ints;
-import java.util.Arrays;
-import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
-import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.MenuOpcode;
 import net.runelite.api.NPC;
-import net.runelite.api.NPCComposition;
-import net.runelite.api.ObjectComposition;
+import net.runelite.api.NPCDefinition;
+import net.runelite.api.ObjectDefinition;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.util.Text;
 import net.runelite.api.widgets.JavaScriptCallback;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetConfig;
@@ -51,17 +50,19 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
-import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.util.LinkBrowser;
-import net.runelite.client.util.Text;
 import okhttp3.HttpUrl;
+import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.Nullable;
 
 @Slf4j
 @PluginDescriptor(
 	name = "Wiki",
-	description = "Adds a Wiki button that takes you to the OSRS Wiki"
+	description = "Adds a Wiki button that takes you to the OSRS Wiki",
+	type = PluginType.UTILITY
 )
 public class WikiPlugin extends Plugin
 {
@@ -74,8 +75,8 @@ public class WikiPlugin extends Plugin
 
 	static final HttpUrl WIKI_BASE = HttpUrl.parse("https://oldschool.runescape.wiki");
 	static final HttpUrl WIKI_API = WIKI_BASE.newBuilder().addPathSegments("api.php").build();
-	static final String UTM_SORUCE_KEY = "utm_source";
-	static final String UTM_SORUCE_VALUE = "runelite";
+	static final String UTM_SOURCE_KEY = "utm_source";
+	static final String UTM_SOURCE_VALUE = "runelite";
 
 	private static final String MENUOP_GUIDE = "Guide";
 	private static final String MENUOP_QUICKGUIDE = "Quick Guide";
@@ -89,9 +90,6 @@ public class WikiPlugin extends Plugin
 
 	@Inject
 	private Client client;
-
-	@Inject
-	private ChatboxPanelManager chatboxPanelManager;
 
 	@Inject
 	private ItemManager itemManager;
@@ -172,11 +170,9 @@ public class WikiPlugin extends Plugin
 		icon.setAction(5, "Search"); // Start at option 5 so the target op is ontop
 		icon.setOnOpListener((JavaScriptCallback) ev ->
 		{
-			switch (ev.getOp())
+			if (ev.getOp() == 6)
 			{
-				case 6:
-					openSearchInput();
-					break;
+				openSearchInput();
 			}
 		});
 		// This doesn't always run because we cancel the menuop
@@ -198,124 +194,128 @@ public class WikiPlugin extends Plugin
 	@Subscribe
 	private void onMenuOptionClicked(MenuOptionClicked ev)
 	{
-		optarget:
-		if (wikiSelected)
+		if (ev.getMenuOpcode() == MenuOpcode.RUNELITE)
 		{
-			onDeselect();
-			client.setSpellSelected(false);
-			ev.consume();
+			checkQuestClicked(ev);
+		}
 
-			String type;
-			int id;
-			String name;
-			WorldPoint location;
-
-			switch (ev.getMenuAction())
-			{
-				case RUNELITE:
-					// This is a quest widget op
-					break optarget;
-				case CANCEL:
-					return;
-				case ITEM_USE_ON_WIDGET:
-				case SPELL_CAST_ON_GROUND_ITEM:
-				{
-					type = "item";
-					id = itemManager.canonicalize(ev.getId());
-					name = itemManager.getItemComposition(id).getName();
-					location = null;
-					break;
-				}
-				case SPELL_CAST_ON_NPC:
-				{
-					type = "npc";
-					NPC npc = client.getCachedNPCs()[ev.getId()];
-					NPCComposition nc = npc.getTransformedComposition();
-					id = nc.getId();
-					name = nc.getName();
-					location = npc.getWorldLocation();
-					break;
-				}
-				case SPELL_CAST_ON_GAME_OBJECT:
-				{
-					type = "object";
-					ObjectComposition lc = client.getObjectDefinition(ev.getId());
-					if (lc.getImpostorIds() != null)
-					{
-						lc = lc.getImpostor();
-					}
-					id = lc.getId();
-					name = lc.getName();
-					location = WorldPoint.fromScene(client, ev.getActionParam(), ev.getWidgetId(), client.getPlane());
-					break;
-				}
-				case SPELL_CAST_ON_WIDGET:
-					Widget w = getWidget(ev.getWidgetId(), ev.getActionParam());
-
-					if (w.getType() == WidgetType.GRAPHIC && w.getItemId() != -1)
-					{
-						type = "item";
-						id = itemManager.canonicalize(w.getItemId());
-						name = itemManager.getItemComposition(id).getName();
-						location = null;
-						break;
-					}
-					// fallthrough
-				default:
-					log.info("Unknown menu option: {} {} {}", ev, ev.getMenuAction(), ev.getMenuAction() == MenuAction.CANCEL);
-					return;
-			}
-
-			name = Text.removeTags(name);
-			HttpUrl.Builder urlBuilder = WIKI_BASE.newBuilder();
-			urlBuilder.addPathSegments("w/Special:Lookup")
-				.addQueryParameter("type", type)
-				.addQueryParameter("id", "" + id)
-				.addQueryParameter("name", name)
-				.addQueryParameter(UTM_SORUCE_KEY, UTM_SORUCE_VALUE);
-
-			if (location != null)
-			{
-				urlBuilder.addQueryParameter("x", "" + location.getX())
-					.addQueryParameter("y", "" + location.getY())
-					.addQueryParameter("plane", "" + location.getPlane());
-			}
-
-			HttpUrl url = urlBuilder.build();
-
-			LinkBrowser.browse(url.toString());
+		if (!wikiSelected)
+		{
 			return;
 		}
 
-		if (ev.getMenuAction() == MenuAction.RUNELITE)
-		{
-			boolean quickguide = false;
-			switch (ev.getMenuOption())
-			{
-				case MENUOP_QUICKGUIDE:
-					quickguide = true;
-					//fallthrough;
-				case MENUOP_GUIDE:
-					ev.consume();
-					String quest = Text.removeTags(ev.getMenuTarget());
-					HttpUrl.Builder ub = WIKI_BASE.newBuilder()
-						.addPathSegment("w")
-						.addPathSegment(quest)
-						.addQueryParameter(UTM_SORUCE_KEY, UTM_SORUCE_VALUE);
-					if (quickguide)
-					{
-						ub.addPathSegment("Quick_guide");
-					}
-					LinkBrowser.browse(ub.build().toString());
-					break;
-				case MENUOP_WIKI:
-					LinkBrowser.browse(WIKI_BASE.newBuilder()
-						.addPathSegment("w")
-						.addPathSegment(Text.removeTags(ev.getMenuTarget()))
-						.addQueryParameter(UTM_SORUCE_KEY, UTM_SORUCE_VALUE)
-						.build().toString());
+		onDeselect();
+		client.setSpellSelected(false);
+		ev.consume();
 
+		String type;
+		int id;
+		String name;
+		WorldPoint location;
+
+		switch (ev.getMenuOpcode())
+		{
+			case RUNELITE:
+			case CANCEL:
+				return;
+			case ITEM_USE_ON_WIDGET:
+			case SPELL_CAST_ON_GROUND_ITEM:
+			{
+				type = "item";
+				id = itemManager.canonicalize(ev.getIdentifier());
+				name = itemManager.getItemDefinition(id).getName();
+				location = null;
+				break;
 			}
+			case SPELL_CAST_ON_NPC:
+			{
+				type = "npc";
+				NPC npc = client.getCachedNPCs()[ev.getIdentifier()];
+				NPCDefinition nc = npc.getTransformedDefinition();
+				id = nc.getId();
+				name = nc.getName();
+				location = npc.getWorldLocation();
+				break;
+			}
+			case SPELL_CAST_ON_GAME_OBJECT:
+			{
+				type = "object";
+				ObjectDefinition lc = client.getObjectDefinition(ev.getIdentifier());
+				if (lc.getImpostorIds() != null)
+				{
+					lc = lc.getImpostor();
+				}
+				id = lc.getId();
+				name = lc.getName();
+				location = WorldPoint.fromScene(client, ev.getParam0(), ev.getParam1(), client.getPlane());
+				break;
+			}
+			case SPELL_CAST_ON_WIDGET:
+			{
+				Widget w = getWidget(ev.getParam1(), ev.getParam0());
+
+				if (w.getType() == WidgetType.GRAPHIC && w.getItemId() != -1)
+				{
+					type = "item";
+					id = itemManager.canonicalize(w.getItemId());
+					name = itemManager.getItemDefinition(id).getName();
+					location = null;
+					break;
+				}
+			}
+				// fallthrough
+			default:
+				log.info("Unknown menu option: {} {} {}", ev, ev.getMenuOpcode(), ev.getMenuOpcode() == MenuOpcode.CANCEL);
+				return;
+		}
+
+		name = Text.removeTags(name);
+		HttpUrl.Builder urlBuilder = WIKI_BASE.newBuilder();
+		urlBuilder.addPathSegments("w/Special:Lookup")
+			.addQueryParameter("type", type)
+			.addQueryParameter("id", "" + id)
+			.addQueryParameter("name", name)
+			.addQueryParameter(UTM_SOURCE_KEY, UTM_SOURCE_VALUE);
+
+		if (location != null)
+		{
+			urlBuilder.addQueryParameter("x", "" + location.getX())
+				.addQueryParameter("y", "" + location.getY())
+				.addQueryParameter("plane", "" + location.getPlane());
+		}
+
+		HttpUrl url = urlBuilder.build();
+
+		LinkBrowser.browse(url.toString());
+	}
+
+	private void checkQuestClicked(MenuOptionClicked ev)
+	{
+		boolean quickguide = false;
+		switch (ev.getOption())
+		{
+			case MENUOP_QUICKGUIDE:
+				quickguide = true;
+				//fallthrough;
+			case MENUOP_GUIDE:
+				ev.consume();
+				String quest = Text.removeTags(ev.getTarget());
+				HttpUrl.Builder ub = WIKI_BASE.newBuilder()
+					.addPathSegment("w")
+					.addPathSegment(quest)
+					.addQueryParameter(UTM_SOURCE_KEY, UTM_SOURCE_VALUE);
+				if (quickguide)
+				{
+					ub.addPathSegment("Quick_guide");
+				}
+				LinkBrowser.browse(ub.build().toString());
+				break;
+			case MENUOP_WIKI:
+				LinkBrowser.browse(WIKI_BASE.newBuilder()
+					.addPathSegment("w")
+					.addPathSegment(Text.removeTags(ev.getTarget()))
+					.addQueryParameter(UTM_SOURCE_KEY, UTM_SOURCE_VALUE)
+					.build().toString());
 		}
 	}
 
@@ -323,6 +323,113 @@ public class WikiPlugin extends Plugin
 	{
 		wikiSearchChatboxTextInputProvider.get()
 			.build();
+	}
+
+	@Subscribe
+	private void onMenuEntryAdded(MenuEntryAdded event)
+	{
+		int widgetIndex = event.getParam0();
+		int widgetID = event.getParam1();
+
+		if (wikiSelected && event.getOpcode() == MenuOpcode.SPELL_CAST_ON_WIDGET.getId())
+		{
+			Widget w = getWidget(widgetID, widgetIndex);
+			if (!(w.getType() == WidgetType.GRAPHIC && w.getItemId() != -1))
+			{
+				// we don't support this widget
+				// remove the last SPELL_CAST_ON_WIDGET; we can't blindly remove the top action because some other
+				// plugin might have added something on this same event, and we probably shouldn't remove that instead
+				MenuEntry[] menuEntries = client.getMenuEntries();
+				for (int i = menuEntries.length - 1; i >= 0; i--)
+				{
+					if (menuEntries[i].getOpcode() == MenuOpcode.SPELL_CAST_ON_WIDGET.getId())
+					{
+						menuEntries[i] = null;
+						client.setMenuEntries(menuEntries);
+						break;
+					}
+				}
+			}
+		}
+
+		if (Ints.contains(QUESTLIST_WIDGET_IDS, widgetID)
+			&& ((wikiSelected && widgetIndex != -1) || "Read Journal:".equals(event.getOption())))
+		{
+			Widget w = getWidget(widgetID, widgetIndex);
+			String target = w.getName();
+
+			client.insertMenuItem(
+				MENUOP_QUICKGUIDE,
+				target,
+				MenuOpcode.RUNELITE.getId(),
+				0,
+				widgetIndex,
+				widgetID,
+				false
+			);
+
+			client.insertMenuItem(
+				MENUOP_GUIDE,
+				target,
+				MenuOpcode.RUNELITE.getId(),
+				0,
+				widgetIndex,
+				widgetID,
+				false
+			);
+		}
+
+		if (widgetID == WidgetInfo.ACHIEVEMENT_DIARY_CONTAINER.getId()
+			&& event.getOption().contains("Open"))
+		{
+			Widget w = getWidget(widgetID, widgetIndex);
+			if (w.getActions() == null)
+			{
+				return;
+			}
+
+			String action = firstAction(w);
+			if (action == null)
+			{
+				return;
+			}
+
+			client.insertMenuItem(
+				MENUOP_WIKI,
+				action.replace("Open ", "").replace("Journal", "Diary"),
+				MenuOpcode.RUNELITE.getId(),
+				0,
+				widgetIndex,
+				widgetID,
+				false
+			);
+		}
+
+		if (WidgetInfo.TO_GROUP(widgetID) == WidgetInfo.SKILLS_CONTAINER.getGroupId()
+			&& event.getOption().contains("View"))
+		{
+			Widget w = getWidget(widgetID, widgetIndex);
+			if (w.getParentId() != WidgetInfo.SKILLS_CONTAINER.getId())
+			{
+				return;
+			}
+
+			String action = firstAction(w);
+			if (action == null)
+			{
+				return;
+			}
+
+			client.insertMenuItem(
+				MENUOP_WIKI,
+				action.replace("View ", "").replace("Guide ", ""),
+				MenuOpcode.RUNELITE.getId(),
+				0,
+				widgetIndex,
+				widgetID,
+				false
+			);
+		}
 	}
 
 	private Widget getWidget(int wid, int index)
@@ -335,111 +442,17 @@ public class WikiPlugin extends Plugin
 		return w;
 	}
 
-	@Subscribe
-	public void onMenuEntryAdded(MenuEntryAdded event)
+	@Nullable
+	private static String firstAction(Widget widget)
 	{
-		int widgetIndex = event.getActionParam0();
-		int widgetID = event.getActionParam1();
-		MenuEntry[] menuEntries = client.getMenuEntries();
-
-		if (wikiSelected && event.getType() == MenuAction.SPELL_CAST_ON_WIDGET.getId())
+		for (String action : widget.getActions())
 		{
-			Widget w = getWidget(widgetID, widgetIndex);
-			if (!(w.getType() == WidgetType.GRAPHIC && w.getItemId() != -1))
+			if (StringUtils.isNotEmpty(action))
 			{
-				// we don't support this widget
-				// remove the last SPELL_CAST_ON_WIDGET; we can't blindly remove the top action because some other
-				// plugin might have added something on this same event, and we probably shouldn't remove that instead
-				MenuEntry[] oldEntries = menuEntries;
-				menuEntries = Arrays.copyOf(menuEntries, menuEntries.length - 1);
-				for (int ourEntry = oldEntries.length - 1;
-					ourEntry >= 2 && oldEntries[oldEntries.length - 1].getType() != MenuAction.SPELL_CAST_ON_WIDGET.getId();
-					ourEntry--)
-				{
-					menuEntries[ourEntry - 1] = oldEntries[ourEntry];
-				}
-				client.setMenuEntries(menuEntries);
+				return action;
 			}
 		}
 
-		if (Ints.contains(QUESTLIST_WIDGET_IDS, widgetID)
-			&& ((wikiSelected && widgetIndex != -1) || "Read Journal:".equals(event.getOption())))
-		{
-			Widget w = getWidget(widgetID, widgetIndex);
-			String target = w.getName();
-			menuEntries = Arrays.copyOf(menuEntries, menuEntries.length + 2);
-
-			MenuEntry menuEntry = menuEntries[menuEntries.length - 1] = new MenuEntry();
-			menuEntry.setTarget(target);
-			menuEntry.setOption(MENUOP_GUIDE);
-			menuEntry.setParam0(widgetIndex);
-			menuEntry.setParam1(widgetID);
-			menuEntry.setType(MenuAction.RUNELITE.getId());
-
-			menuEntry = menuEntries[menuEntries.length - 2] = new MenuEntry();
-			menuEntry.setTarget(target);
-			menuEntry.setOption(MENUOP_QUICKGUIDE);
-			menuEntry.setParam0(widgetIndex);
-			menuEntry.setParam1(widgetID);
-			menuEntry.setType(MenuAction.RUNELITE.getId());
-
-			client.setMenuEntries(menuEntries);
-		}
-
-		if (widgetID == WidgetInfo.ACHIEVEMENT_DIARY_CONTAINER.getId())
-		{
-			Widget w = getWidget(widgetID, widgetIndex);
-			if (w.getActions() == null)
-			{
-				return;
-			}
-
-			String action = Stream.of(w.getActions())
-				.filter(s -> s != null && !s.isEmpty())
-				.findFirst().orElse(null);
-			if (action == null)
-			{
-				return;
-			}
-
-			menuEntries = Arrays.copyOf(menuEntries, menuEntries.length + 1);
-
-			MenuEntry menuEntry = menuEntries[menuEntries.length - 1] = new MenuEntry();
-			menuEntry.setTarget(action.replace("Open ", "").replace("Journal", "Diary"));
-			menuEntry.setOption(MENUOP_WIKI);
-			menuEntry.setParam0(widgetIndex);
-			menuEntry.setParam1(widgetID);
-			menuEntry.setType(MenuAction.RUNELITE.getId());
-
-			client.setMenuEntries(menuEntries);
-		}
-
-		if (WidgetInfo.TO_GROUP(widgetID) == WidgetInfo.SKILLS_CONTAINER.getGroupId())
-		{
-			Widget w = getWidget(widgetID, widgetIndex);
-			if (w.getParentId() != WidgetInfo.SKILLS_CONTAINER.getId())
-			{
-				return;
-			}
-
-			String action = Stream.of(w.getActions())
-				.filter(s -> s != null && !s.isEmpty())
-				.findFirst().orElse(null);
-			if (action == null)
-			{
-				return;
-			}
-
-			menuEntries = Arrays.copyOf(menuEntries, menuEntries.length + 1);
-
-			MenuEntry menuEntry = menuEntries[menuEntries.length - 1] = new MenuEntry();
-			menuEntry.setTarget(action.replace("View ", "").replace(" guide", ""));
-			menuEntry.setOption(MENUOP_WIKI);
-			menuEntry.setParam0(widgetIndex);
-			menuEntry.setParam1(widgetID);
-			menuEntry.setType(MenuAction.RUNELITE.getId());
-
-			client.setMenuEntries(menuEntries);
-		}
+		return null;
 	}
 }

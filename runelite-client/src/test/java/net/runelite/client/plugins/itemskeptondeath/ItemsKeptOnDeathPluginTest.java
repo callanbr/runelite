@@ -33,9 +33,11 @@ import java.util.Collections;
 import java.util.List;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
-import net.runelite.api.ItemComposition;
+import net.runelite.api.ItemDefinition;
 import net.runelite.api.ItemID;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.ItemReclaimCost;
 import static net.runelite.client.plugins.itemskeptondeath.ItemsKeptOnDeathPlugin.DeathItems;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -59,6 +61,10 @@ public class ItemsKeptOnDeathPluginTest
 	@Bind
 	private ItemManager itemManager;
 
+	@Mock
+	@Bind
+	private OpenOSRSConfig openOSRSConfig;
+
 	@Inject
 	private ItemsKeptOnDeathPlugin plugin;
 
@@ -80,7 +86,7 @@ public class ItemsKeptOnDeathPluginTest
 	private Item mItem(final int id, final int qty, final String name, final boolean tradeable, final int price)
 	{
 		// Mock Item Composition and necessary ItemManager methods for this item
-		ItemComposition c = mock(ItemComposition.class);
+		ItemDefinition c = mock(ItemDefinition.class);
 		when(c.getId())
 			.thenReturn(id);
 		when(c.getName())
@@ -96,7 +102,7 @@ public class ItemsKeptOnDeathPluginTest
 			when(c.getLinkedNoteId()).thenReturn(-1);
 		}
 
-		when(itemManager.getItemComposition(id)).thenReturn(c);
+		when(itemManager.getItemDefinition(id)).thenReturn(c);
 		when(itemManager.canonicalize(id)).thenReturn(id);
 		when(itemManager.getItemPrice(id, true)).thenReturn(price);
 
@@ -637,8 +643,8 @@ public class ItemsKeptOnDeathPluginTest
 	{
 		final Item defender = mItem(ItemID.AVERNIC_DEFENDER, 1, "Avernic defender", false, 0);
 		final int defenderOffset = FixedPriceItem.AVERNIC_DEFENDER.getOffset();
-		final Integer defenderBrokenPrice = BrokenOnDeathItem.getRepairPrice(ItemID.AVERNIC_DEFENDER);
-		final int defenderExpectedPrice = (defenderBrokenPrice == null ? 0 : defenderBrokenPrice) + defenderOffset;
+		final ItemReclaimCost defenderBrokenPrice = ItemReclaimCost.of(ItemID.AVERNIC_DEFENDER);
+		final int defenderExpectedPrice = (defenderBrokenPrice == null ? 0 : defenderBrokenPrice.getValue()) + defenderOffset;
 		assertEquals(defenderExpectedPrice, plugin.getDeathPrice(defender));
 
 		final Item[] inv = new Item[]
@@ -655,5 +661,30 @@ public class ItemsKeptOnDeathPluginTest
 
 		final List<ItemStack> kept = deathItems.getKeptItems();
 		assertTrue(kept.contains(new ItemStack(ItemID.AVERNIC_DEFENDER, 1)));
+	}
+
+	@Test
+	public void lockedItemTest()
+	{
+		// Base item data needs to exist for each locked item tested as the death price is pulled from the base item.
+		final Item defenderBase = mItem(ItemID.AVERNIC_DEFENDER, 1, "Avernic defender", false, 0);
+		final Item defenderLocked = mItem(ItemID.AVERNIC_DEFENDER_L, 1, "Avernic defender (l)", false, 0);
+
+		assertEquals(plugin.getDeathPrice(defenderBase), plugin.getDeathPrice(defenderLocked));
+
+		final Item[] inv = new Item[]
+			{
+				defenderLocked,
+				mItem(ItemID.DRAGON_CLAWS, 1, "Dragon Claws", true, 30042579)
+			};
+
+		plugin.isSkulled = true;
+		plugin.protectingItem = true;
+		plugin.wildyLevel = 21;
+
+		final DeathItems deathItems = plugin.calculateKeptLostItems(inv, new Item[0]);
+
+		final List<ItemStack> kept = deathItems.getKeptItems();
+		assertEquals(inv.length, kept.size());
 	}
 }

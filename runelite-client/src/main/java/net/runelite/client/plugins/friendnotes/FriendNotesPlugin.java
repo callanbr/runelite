@@ -28,37 +28,39 @@
 package net.runelite.client.plugins.friendnotes;
 
 import com.google.common.base.Strings;
-import com.google.common.collect.ObjectArrays;
 import java.awt.Color;
 import javax.annotation.Nullable;
 import javax.inject.Inject;
+import javax.inject.Singleton;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Friend;
-import net.runelite.api.Ignore;
-import net.runelite.api.MenuAction;
-import net.runelite.api.MenuEntry;
+import net.runelite.api.MenuOpcode;
 import net.runelite.api.Nameable;
+import net.runelite.api.events.FriendRemoved;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.NameableNameChanged;
-import net.runelite.api.events.RemovedFriend;
+import net.runelite.api.util.Text;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ColorUtil;
-import net.runelite.client.util.Text;
 
 @Slf4j
 @PluginDescriptor(
 	name = "Friend Notes",
-	description = "Store notes about your friends"
+	description = "Store notes about your friends",
+	type = PluginType.MISCELLANEOUS
 )
+@Singleton
 public class FriendNotesPlugin extends Plugin
 {
 	private static final String CONFIG_GROUP = "friendNotes";
@@ -84,17 +86,17 @@ public class FriendNotesPlugin extends Plugin
 	@Inject
 	private ChatboxPanelManager chatboxPanelManager;
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private HoveredFriend hoveredFriend = null;
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
 		overlayManager.add(overlay);
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		overlayManager.remove(overlay);
 	}
@@ -160,28 +162,27 @@ public class FriendNotesPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onMenuEntryAdded(MenuEntryAdded event)
+	private void onMenuEntryAdded(MenuEntryAdded event)
 	{
-		final int groupId = WidgetInfo.TO_GROUP(event.getActionParam1());
+		final int groupId = WidgetInfo.TO_GROUP(event.getParam1());
 
 		// Look for "Message" on friends list
-		if ((groupId == WidgetInfo.FRIENDS_LIST.getGroupId() && event.getOption().equals("Message")) ||
-				(groupId == WidgetInfo.IGNORE_LIST.getGroupId() && event.getOption().equals("Delete")))
+		if (groupId == WidgetInfo.FRIENDS_LIST.getGroupId() && event.getOption().equals("Message"))
 		{
 			// Friends have color tags
 			setHoveredFriend(Text.toJagexName(Text.removeTags(event.getTarget())));
 
 			// Build "Add Note" or "Edit Note" menu entry
-			final MenuEntry addNote = new MenuEntry();
-			addNote.setOption(hoveredFriend == null || hoveredFriend.getNote() == null ? ADD_NOTE : EDIT_NOTE);
-			addNote.setType(MenuAction.RUNELITE.getId());
-			addNote.setTarget(event.getTarget()); //Preserve color codes here
-			addNote.setParam0(event.getActionParam0());
-			addNote.setParam1(event.getActionParam1());
-
 			// Add menu entry
-			final MenuEntry[] menuEntries = ObjectArrays.concat(client.getMenuEntries(), addNote);
-			client.setMenuEntries(menuEntries);
+			client.insertMenuItem(
+				hoveredFriend == null || hoveredFriend.getNote() == null ? ADD_NOTE : EDIT_NOTE,
+				event.getTarget(),
+				MenuOpcode.RUNELITE.getId(),
+				0,
+				event.getParam0(),
+				event.getParam1(),
+				false
+			);
 		}
 		else if (hoveredFriend != null)
 		{
@@ -190,24 +191,22 @@ public class FriendNotesPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onMenuOptionClicked(MenuOptionClicked event)
+	private void onMenuOptionClicked(MenuOptionClicked event)
 	{
-		final int groupId = WidgetInfo.TO_GROUP(event.getWidgetId());
-
-		if (groupId == WidgetInfo.FRIENDS_LIST.getGroupId() || groupId == WidgetInfo.IGNORE_LIST.getGroupId())
+		if (WidgetInfo.TO_GROUP(event.getParam1()) == WidgetInfo.FRIENDS_LIST.getGroupId())
 		{
-			if (Strings.isNullOrEmpty(event.getMenuTarget()))
+			if (Strings.isNullOrEmpty(event.getTarget()))
 			{
 				return;
 			}
 
 			// Handle clicks on "Add Note" or "Edit Note"
-			if (event.getMenuOption().equals(ADD_NOTE) || event.getMenuOption().equals(EDIT_NOTE))
+			if (event.getOption().equals(ADD_NOTE) || event.getOption().equals(EDIT_NOTE))
 			{
 				event.consume();
 
 				//Friends have color tags
-				final String sanitizedTarget = Text.toJagexName(Text.removeTags(event.getMenuTarget()));
+				final String sanitizedTarget = Text.toJagexName(Text.removeTags(event.getTarget()));
 				final String note = getFriendNote(sanitizedTarget);
 
 				// Open the new chatbox input dialog
@@ -230,15 +229,16 @@ public class FriendNotesPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onNameableNameChanged(NameableNameChanged event)
+	private void onNameableNameChanged(NameableNameChanged event)
 	{
 		final Nameable nameable = event.getNameable();
 
-		if (nameable instanceof Friend || nameable instanceof Ignore)
+		if (nameable instanceof Friend)
 		{
 			// Migrate a friend's note to their new display name
-			String name = nameable.getName();
-			String prevName = nameable.getPrevName();
+			final Friend friend = (Friend) nameable;
+			String name = friend.getName();
+			String prevName = friend.getPrevName();
 
 			if (prevName != null)
 			{
@@ -251,10 +251,10 @@ public class FriendNotesPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onRemovedFriend(RemovedFriend event)
+	private void onFriendRemoved(FriendRemoved event)
 	{
 		// Delete a friend's note if they are removed
-		final String displayName = Text.toJagexName(event.getNameable().getName());
+		final String displayName = Text.toJagexName(event.getName());
 		log.debug("Remove friend: '{}'", displayName);
 		setFriendNote(displayName, null);
 	}

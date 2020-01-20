@@ -25,13 +25,11 @@
 package net.runelite.api;
 
 import java.util.List;
-import net.runelite.api.coords.LocalPoint;
-import net.runelite.api.coords.WorldPoint;
 
 /**
  * Represents a tile in the game.
  */
-public interface Tile
+public interface Tile extends TileObject
 {
 	/**
 	 * Gets the decoration on the tile.
@@ -52,7 +50,7 @@ public interface Tile
 	 *
 	 * @return the item
 	 */
-	ItemLayer getItemLayer();
+	TileItemPile getItemLayer();
 
 	/**
 	 * Gets the object on the ground layer of the tile.
@@ -73,21 +71,14 @@ public interface Tile
 	 *
 	 * @return the paint
 	 */
-	SceneTilePaint getSceneTilePaint();
+	TilePaint getTilePaint();
 
 	/**
 	 * Gets the model of the tile in the scene.
 	 *
 	 * @return the tile model
 	 */
-	SceneTileModel getSceneTileModel();
-
-	/**
-	 * Gets the location coordinate of the tile in the world.
-	 *
-	 * @return the world location
-	 */
-	WorldPoint getWorldLocation();
+	TileModel getTileModel();
 
 	/**
 	 * Gets the location coordinate of the tile in scene coords
@@ -95,20 +86,6 @@ public interface Tile
 	 * @return the scene location
 	 */
 	Point getSceneLocation();
-
-	/**
-	 * Gets the local coordinate of the tile.
-	 *
-	 * @return the local location
-	 */
-	LocalPoint getLocalLocation();
-
-	/**
-	 * Gets the plane that this tile is on.
-	 *
-	 * @return the plane
-	 */
-	int getPlane();
 
 	/**
 	 * Get the plane this tile is rendered on, which is where the tile heights are from.
@@ -134,8 +111,6 @@ public interface Tile
 
 	/**
 	 * Return the tile under this one, if this tile is a bridge
-	 *
-	 * @return
 	 */
 	Tile getBridge();
 }

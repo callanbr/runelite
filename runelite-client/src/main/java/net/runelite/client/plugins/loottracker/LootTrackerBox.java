@@ -30,10 +30,13 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.image.BufferedImage;
+import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
@@ -48,13 +51,13 @@ import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 import lombok.AccessLevel;
 import lombok.Getter;
-import net.runelite.client.util.AsyncBufferedImage;
+import net.runelite.api.util.Text;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
+import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.QuantityFormatter;
-import net.runelite.client.util.Text;
 
 class LootTrackerBox extends JPanel
 {
@@ -65,27 +68,28 @@ class LootTrackerBox extends JPanel
 	private final JLabel priceLabel = new JLabel();
 	private final JLabel subTitleLabel = new JLabel();
 	private final JPanel logTitle = new JPanel();
-	private final JLabel titleLabel = new JLabel();
 	private final ItemManager itemManager;
 	@Getter(AccessLevel.PACKAGE)
 	private final String id;
 	private final LootTrackerPriceType priceType;
 	private final boolean showPriceType;
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final List<LootTrackerRecord> records = new ArrayList<>();
 
 	private long totalPrice;
-	private boolean hideIgnoredItems;
-	private BiConsumer<String, Boolean> onItemToggle;
+	private final boolean hideIgnoredItems;
+	private final BiConsumer<String, Boolean> onItemToggle;
 
 	LootTrackerBox(
+		final long timeStamp,
 		final ItemManager itemManager,
 		final String id,
 		@Nullable final String subtitle,
 		final boolean hideIgnoredItems,
 		final LootTrackerPriceType priceType,
 		final boolean showPriceType,
+		@Nullable final Boolean showDate,
 		final BiConsumer<String, Boolean> onItemToggle)
 	{
 		this.id = id;
@@ -102,6 +106,7 @@ class LootTrackerBox extends JPanel
 		logTitle.setBorder(new EmptyBorder(7, 7, 7, 7));
 		logTitle.setBackground(ColorScheme.DARKER_GRAY_COLOR.darker());
 
+		JLabel titleLabel = new JLabel();
 		titleLabel.setText(Text.removeTags(id));
 		titleLabel.setFont(FontManager.getRunescapeSmallFont());
 		titleLabel.setForeground(Color.WHITE);
@@ -111,6 +116,17 @@ class LootTrackerBox extends JPanel
 
 		subTitleLabel.setFont(FontManager.getRunescapeSmallFont());
 		subTitleLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+
+		JLabel dateLabel = new JLabel();
+		dateLabel.setFont(FontManager.getRunescapeSmallFont().deriveFont(Font.PLAIN, FontManager.getRunescapeSmallFont().getSize() - 2));
+		dateLabel.setForeground(Color.LIGHT_GRAY);
+		dateLabel.setText(DateFormat.getDateInstance().format(new Date(timeStamp)));
+
+		if (showDate)
+		{
+			logTitle.add(dateLabel, BorderLayout.SOUTH);
+		}
+
 
 		if (!Strings.isNullOrEmpty(subtitle))
 		{
@@ -128,6 +144,7 @@ class LootTrackerBox extends JPanel
 
 		add(logTitle, BorderLayout.NORTH);
 		add(itemContainer, BorderLayout.CENTER);
+
 	}
 
 	/**
@@ -138,7 +155,8 @@ class LootTrackerBox extends JPanel
 	private long getTotalKills()
 	{
 		return hideIgnoredItems
-			? records.stream().filter(r -> !Arrays.stream(r.getItems()).allMatch(LootTrackerItem::isIgnored)).count()
+			? records.stream().filter(
+			r -> !Arrays.stream(r.getItems()).allMatch(LootTrackerItem::isIgnored)).count()
 			: records.size();
 	}
 
@@ -286,7 +304,7 @@ class LootTrackerBox extends JPanel
 				}
 			}
 
-			if (quantity > 0)
+			if (quantity != 0)
 			{
 				int newQuantity = entry.getQuantity() + quantity;
 				long gePricePerItem = entry.getGePrice() == 0 ? 0 : (entry.getGePrice() / entry.getQuantity());
@@ -328,7 +346,7 @@ class LootTrackerBox extends JPanel
 				imageLabel.setVerticalAlignment(SwingConstants.CENTER);
 				imageLabel.setHorizontalAlignment(SwingConstants.CENTER);
 
-				AsyncBufferedImage itemImage = itemManager.getImage(item.getId(), item.getQuantity(), item.getQuantity() > 1);
+				AsyncBufferedImage itemImage = itemManager.getImage(item.getId(), Math.abs(item.getQuantity()), Math.abs(item.getQuantity()) > 1);
 
 				if (item.isIgnored())
 				{

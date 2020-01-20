@@ -28,19 +28,22 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import net.runelite.api.Client;
-import static net.runelite.api.MenuAction.RUNELITE_OVERLAY;
-import static net.runelite.api.MenuAction.RUNELITE_OVERLAY_CONFIG;
+import static net.runelite.api.MenuOpcode.RUNELITE_OVERLAY;
+import static net.runelite.api.MenuOpcode.RUNELITE_OVERLAY_CONFIG;
 import net.runelite.api.Skill;
 import net.runelite.client.plugins.xptracker.XpTrackerService;
 import net.runelite.client.ui.overlay.Overlay;
 import static net.runelite.client.ui.overlay.OverlayManager.OPTION_CONFIGURE;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPosition;
-import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.PanelComponent;
 import net.runelite.client.ui.overlay.components.TitleComponent;
+import net.runelite.client.ui.overlay.components.table.TableAlignment;
+import net.runelite.client.ui.overlay.components.table.TableComponent;
 
+@Singleton
 class WoodcuttingOverlay extends Overlay
 {
 	static final String WOODCUTTING_RESET = "Reset";
@@ -96,22 +99,26 @@ class WoodcuttingOverlay extends Overlay
 				.build());
 		}
 
+		TableComponent tableComponent = new TableComponent();
+		tableComponent.setColumnAlignments(TableAlignment.LEFT, TableAlignment.RIGHT);
+
 		int actions = xpTrackerService.getActions(Skill.WOODCUTTING);
 		if (actions > 0)
 		{
-			panelComponent.getChildren().add(LineComponent.builder()
-				.left("Logs cut:")
-				.right(Integer.toString(actions))
-				.build());
+			tableComponent.addRow("Logs cut:", Integer.toString(actions));
+
+			if (config.showGPEarned())
+			{
+				tableComponent.addRow("GP earned:", Integer.toString((plugin.getGpEarned())));
+			}
 
 			if (actions > 2)
 			{
-				panelComponent.getChildren().add(LineComponent.builder()
-					.left("Logs/hr:")
-					.right(Integer.toString(xpTrackerService.getActionsHr(Skill.WOODCUTTING)))
-					.build());
+				tableComponent.addRow("Logs/hr:", Integer.toString(xpTrackerService.getActionsHr(Skill.WOODCUTTING)));
 			}
 		}
+
+		panelComponent.getChildren().add(tableComponent);
 
 		return panelComponent.render(graphics);
 	}

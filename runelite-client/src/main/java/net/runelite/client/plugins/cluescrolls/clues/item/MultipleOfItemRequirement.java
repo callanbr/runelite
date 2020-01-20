@@ -26,12 +26,12 @@ package net.runelite.client.plugins.cluescrolls.clues.item;
 
 import net.runelite.api.Client;
 import net.runelite.api.Item;
-import net.runelite.api.ItemComposition;
+import net.runelite.api.ItemDefinition;
 
 public class MultipleOfItemRequirement implements ItemRequirement
 {
-	private int itemId;
-	private int quantity;
+	private final int itemId;
+	private final int quantity;
 
 	public MultipleOfItemRequirement(int itemId, int quantity)
 	{
@@ -67,7 +67,7 @@ public class MultipleOfItemRequirement implements ItemRequirement
 	@Override
 	public String getCollectiveName(Client client)
 	{
-		ItemComposition definition = client.getItemDefinition(itemId);
+		ItemDefinition definition = client.getItemDefinition(itemId);
 
 		if (definition == null)
 		{

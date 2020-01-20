@@ -28,6 +28,7 @@ package net.runelite.client.plugins.discord;
 import com.google.common.base.Strings;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
+import com.google.inject.Singleton;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,13 +38,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import javax.imageio.ImageIO;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Skill;
 import net.runelite.api.WorldType;
 import net.runelite.api.coords.WorldPoint;
-import net.runelite.client.events.ConfigChanged;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.VarbitChanged;
@@ -54,9 +56,11 @@ import net.runelite.client.discord.events.DiscordJoinGame;
 import net.runelite.client.discord.events.DiscordJoinRequest;
 import net.runelite.client.discord.events.DiscordReady;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.PartyChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
@@ -73,13 +77,16 @@ import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Request;
 import okhttp3.Response;
+import org.jetbrains.annotations.NotNull;
 
 @PluginDescriptor(
 	name = "Discord",
 	description = "Show your status and activity in the Discord user panel",
-	tags = {"action", "activity", "external", "integration", "status"}
+	tags = {"action", "activity", "external", "integration", "status"},
+	type = PluginType.MISCELLANEOUS
 )
 @Slf4j
+@Singleton
 public class DiscordPlugin extends Plugin
 {
 	@Inject
@@ -103,9 +110,22 @@ public class DiscordPlugin extends Plugin
 	@Inject
 	private WSClient wsClient;
 
-	private Map<Skill, Integer> skillExp = new HashMap<>();
+	private final Map<Skill, Integer> skillExp = new HashMap<>();
 	private NavigationButton discordButton;
 	private boolean loginFlag;
+
+	@Getter(AccessLevel.PACKAGE)
+	private int actionTimeout;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean hideElapsedTime;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean alwaysShowParty;
+	private boolean showSkillingActivity;
+	private boolean showBossActivity;
+	private boolean showCityActivity;
+	private boolean showDungeonActivity;
+	private boolean showMinigameActivity;
+	private boolean showRaidingActivity;
 
 	@Provides
 	private DiscordConfig provideConfig(ConfigManager configManager)
@@ -114,8 +134,10 @@ public class DiscordPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+		updateConfig();
+
 		final BufferedImage icon = ImageUtil.getResourceStreamFromClass(getClass(), "discord.png");
 
 		discordButton = NavigationButton.builder()
@@ -133,12 +155,12 @@ public class DiscordPlugin extends Plugin
 		{
 			partyService.setUsername(discordService.getCurrentUser().username + "#" + discordService.getCurrentUser().discriminator);
 		}
-
+		wsClient.unregisterMessage(DiscordUserInfo.class);
 		wsClient.registerMessage(DiscordUserInfo.class);
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		clientToolbar.removeNavigation(discordButton);
 		discordState.reset();
@@ -147,7 +169,7 @@ public class DiscordPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged event)
+	private void onGameStateChanged(GameStateChanged event)
 	{
 		switch (event.getGameState())
 		{
@@ -171,17 +193,20 @@ public class DiscordPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onConfigChanged(ConfigChanged event)
+	private void onConfigChanged(ConfigChanged event)
 	{
 		if (event.getGroup().equalsIgnoreCase("discord"))
 		{
+			updateConfig();
+
 			checkForGameStateUpdate();
 			checkForAreaUpdate();
+			updatePresence();
 		}
 	}
 
 	@Subscribe
-	public void onStatChanged(StatChanged statChanged)
+	private void onStatChanged(StatChanged statChanged)
 	{
 		final Skill skill = statChanged.getSkill();
 		final int exp = statChanged.getXp();
@@ -194,16 +219,16 @@ public class DiscordPlugin extends Plugin
 
 		final DiscordGameEventType discordGameEventType = DiscordGameEventType.fromSkill(skill);
 
-		if (discordGameEventType != null && config.showSkillingActivity())
+		if (discordGameEventType != null && this.showSkillingActivity)
 		{
 			discordState.triggerEvent(discordGameEventType);
 		}
 	}
 
 	@Subscribe
-	public void onVarbitChanged(VarbitChanged event)
+	private void onVarbitChanged(VarbitChanged event)
 	{
-		if (!config.showRaidingActivity())
+		if (!this.showRaidingActivity)
 		{
 			return;
 		}
@@ -217,13 +242,13 @@ public class DiscordPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onDiscordReady(DiscordReady event)
+	private void onDiscordReady(DiscordReady event)
 	{
 		partyService.setUsername(event.getUsername() + "#" + event.getDiscriminator());
 	}
 
 	@Subscribe
-	public void onDiscordJoinRequest(DiscordJoinRequest request)
+	private void onDiscordJoinRequest(DiscordJoinRequest request)
 	{
 		log.debug("Got discord join request {}", request);
 		if (partyService.isOwner() && partyService.getMembers().isEmpty())
@@ -235,7 +260,7 @@ public class DiscordPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onDiscordJoinGame(DiscordJoinGame joinGame)
+	private void onDiscordJoinGame(DiscordJoinGame joinGame)
 	{
 		log.debug("Got discord join game {}", joinGame);
 		UUID partyId = UUID.fromString(joinGame.getJoinSecret());
@@ -244,7 +269,7 @@ public class DiscordPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onDiscordUserInfo(final DiscordUserInfo event)
+	private void onDiscordUserInfo(final DiscordUserInfo event)
 	{
 		final PartyMember memberById = partyService.getMemberById(event.getMemberId());
 
@@ -261,7 +286,7 @@ public class DiscordPlugin extends Plugin
 
 			if (split.length == 2)
 			{
-				int disc = Integer.valueOf(split[1]);
+				int disc = Integer.parseInt(split[1]);
 				int avatarId = disc % 5;
 				url = "https://cdn.discordapp.com/embed/avatars/" + avatarId + ".png";
 			}
@@ -276,14 +301,15 @@ public class DiscordPlugin extends Plugin
 		RuneLiteAPI.CLIENT.newCall(request).enqueue(new Callback()
 		{
 			@Override
-			public void onFailure(Call call, IOException e)
+			public void onFailure(@NotNull Call call, @NotNull IOException e)
 			{
 
 			}
 
 			@Override
-			public void onResponse(Call call, Response response) throws IOException
+			public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException
 			{
+				//noinspection TryFinallyCanBeTryWithResources
 				try
 				{
 					if (!response.isSuccessful())
@@ -304,38 +330,35 @@ public class DiscordPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onUserJoin(final UserJoin event)
+	private void onUserJoin(final UserJoin event)
 	{
 		updatePresence();
 	}
 
 	@Subscribe
-	public void onUserSync(final UserSync event)
+	private void onUserSync(final UserSync event)
 	{
 		final PartyMember localMember = partyService.getLocalMember();
 
-		if (localMember != null)
+		if (localMember != null && discordService.getCurrentUser() != null)
 		{
-			if (discordService.getCurrentUser() != null)
-			{
-				final DiscordUserInfo userInfo = new DiscordUserInfo(
-					discordService.getCurrentUser().userId,
-					discordService.getCurrentUser().avatar);
+			final DiscordUserInfo userInfo = new DiscordUserInfo(
+				discordService.getCurrentUser().userId,
+				discordService.getCurrentUser().avatar);
 
-				userInfo.setMemberId(localMember.getMemberId());
-				wsClient.send(userInfo);
-			}
+			userInfo.setMemberId(localMember.getMemberId());
+			wsClient.send(userInfo);
 		}
 	}
 
 	@Subscribe
-	public void onUserPart(final UserPart event)
+	private void onUserPart(final UserPart event)
 	{
 		updatePresence();
 	}
 
 	@Subscribe
-	public void onPartyChanged(final PartyChanged event)
+	private void onPartyChanged(final PartyChanged event)
 	{
 		updatePresence();
 	}
@@ -370,7 +393,8 @@ public class DiscordPlugin extends Plugin
 			return;
 		}
 
-		final int playerRegionID = WorldPoint.fromLocalInstance(client, client.getLocalPlayer().getLocalLocation()).getRegionID();
+		final WorldPoint worldPoint = WorldPoint.fromLocalInstance(client, client.getLocalPlayer().getLocalLocation());
+		final int playerRegionID = worldPoint == null ? 0 : worldPoint.getRegionID();
 
 		if (playerRegionID == 0)
 		{
@@ -411,12 +435,29 @@ public class DiscordPlugin extends Plugin
 
 		switch (event.getDiscordAreaType())
 		{
-			case BOSSES: return config.showBossActivity();
-			case CITIES: return config.showCityActivity();
-			case DUNGEONS: return config.showDungeonActivity();
-			case MINIGAMES: return config.showMinigameActivity();
+			case BOSSES:
+				return this.showBossActivity;
+			case CITIES:
+				return this.showCityActivity;
+			case DUNGEONS:
+				return this.showDungeonActivity;
+			case MINIGAMES:
+				return this.showMinigameActivity;
 		}
 
 		return false;
+	}
+
+	private void updateConfig()
+	{
+		this.actionTimeout = config.actionTimeout();
+		this.hideElapsedTime = config.hideElapsedTime();
+		this.alwaysShowParty = config.alwaysShowParty();
+		this.showSkillingActivity = config.showSkillingActivity();
+		this.showBossActivity = config.showBossActivity();
+		this.showCityActivity = config.showCityActivity();
+		this.showDungeonActivity = config.showDungeonActivity();
+		this.showMinigameActivity = config.showMinigameActivity();
+		this.showRaidingActivity = config.showRaidingActivity();
 	}
 }

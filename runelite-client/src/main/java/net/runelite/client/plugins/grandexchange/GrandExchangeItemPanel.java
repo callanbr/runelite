@@ -35,12 +35,13 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
+import javax.inject.Singleton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
-import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.util.QuantityFormatter;
 
@@ -48,12 +49,12 @@ import net.runelite.client.util.QuantityFormatter;
  * This panel displays an individual item result in the
  * Grand Exchange search plugin.
  */
+@Singleton
 class GrandExchangeItemPanel extends JPanel
 {
 	private static final Dimension ICON_SIZE = new Dimension(32, 32);
 
-	GrandExchangeItemPanel(AsyncBufferedImage icon, String name, int itemID, int gePrice, Double
-		haPrice, int geItemLimit)
+	GrandExchangeItemPanel(AsyncBufferedImage icon, String name, int itemID, int gePrice, int haPrice, int geItemLimit)
 	{
 		BorderLayout layout = new BorderLayout();
 		layout.setHgap(5);
@@ -67,6 +68,12 @@ class GrandExchangeItemPanel extends JPanel
 
 		MouseAdapter itemPanelMouseListener = new MouseAdapter()
 		{
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				geLink(name, itemID);
+			}
+
 			@Override
 			public void mouseEntered(MouseEvent e)
 			{
@@ -86,12 +93,6 @@ class GrandExchangeItemPanel extends JPanel
 				}
 				setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
 			}
-
-			@Override
-			public void mouseReleased(MouseEvent e)
-			{
-				geLink(name, itemID);
-			}
 		};
 
 		addMouseListener(itemPanelMouseListener);
@@ -108,7 +109,7 @@ class GrandExchangeItemPanel extends JPanel
 		add(itemIcon, BorderLayout.LINE_START);
 
 		// Item details panel
-		JPanel rightPanel = new JPanel(new GridLayout(3, 1));
+		JPanel rightPanel = new JPanel(new GridLayout(4, 1));
 		panels.add(rightPanel);
 		rightPanel.setBackground(background);
 
@@ -124,7 +125,7 @@ class GrandExchangeItemPanel extends JPanel
 		JLabel gePriceLabel = new JLabel();
 		if (gePrice > 0)
 		{
-			gePriceLabel.setText(QuantityFormatter.formatNumber(gePrice) + " gp");
+			gePriceLabel.setText("GE Price: " + QuantityFormatter.formatNumber(gePrice) + " gp");
 		}
 		else
 		{
@@ -133,27 +134,31 @@ class GrandExchangeItemPanel extends JPanel
 		gePriceLabel.setForeground(ColorScheme.GRAND_EXCHANGE_PRICE);
 		rightPanel.add(gePriceLabel);
 
-		JPanel alchAndLimitPanel = new JPanel(new BorderLayout());
-		panels.add(alchAndLimitPanel);
-		alchAndLimitPanel.setBackground(background);
-
 		// Alch price
 		JLabel haPriceLabel = new JLabel();
-		haPriceLabel.setText(QuantityFormatter.formatNumber(haPrice.intValue()) + " alch");
+		haPriceLabel.setText("Alch Price: " + QuantityFormatter.formatNumber(haPrice) + " gp");
 		haPriceLabel.setForeground(ColorScheme.GRAND_EXCHANGE_ALCH);
-		alchAndLimitPanel.add(haPriceLabel, BorderLayout.WEST);
+		rightPanel.add(haPriceLabel);
 
 		// GE Limit
 		JLabel geLimitLabel = new JLabel();
-		String limitLabelText = geItemLimit == 0 ? "" : "Limit " + QuantityFormatter.formatNumber(geItemLimit);
+		String limitLabelText = geItemLimit == 0 ? "" : "Buy Limit " + QuantityFormatter.formatNumber(geItemLimit);
 		geLimitLabel.setText(limitLabelText);
 		geLimitLabel.setForeground(ColorScheme.GRAND_EXCHANGE_LIMIT);
 		geLimitLabel.setBorder(new CompoundBorder(geLimitLabel.getBorder(), new EmptyBorder(0, 0, 0, 7)));
-		alchAndLimitPanel.add(geLimitLabel, BorderLayout.EAST);
-
-		rightPanel.add(alchAndLimitPanel);
+		rightPanel.add(geLimitLabel);
 
 		add(rightPanel, BorderLayout.CENTER);
+	}
+
+	static void geLink(String name, int itemID)
+	{
+		final String url = "http://services.runescape.com/m=itemdb_oldschool/"
+			+ name.replaceAll(" ", "_")
+			+ "/viewitem?obj="
+			+ itemID;
+
+		LinkBrowser.browse(url);
 	}
 
 	private void matchComponentBackground(JPanel panel, Color color)
@@ -163,15 +168,5 @@ class GrandExchangeItemPanel extends JPanel
 		{
 			c.setBackground(color);
 		}
-	}
-
-	private static void geLink(String name, int itemID)
-	{
-		final String url = "http://services.runescape.com/m=itemdb_oldschool/"
-			+ name.replaceAll(" ", "_")
-			+ "/viewitem?obj="
-			+ itemID;
-
-		LinkBrowser.browse(url);
 	}
 }

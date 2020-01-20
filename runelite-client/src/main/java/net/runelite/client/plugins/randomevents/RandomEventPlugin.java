@@ -33,7 +33,7 @@ import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
-import net.runelite.api.MenuAction;
+import net.runelite.api.MenuOpcode;
 import net.runelite.api.NPC;
 import net.runelite.api.NpcID;
 import net.runelite.api.Player;
@@ -43,13 +43,16 @@ import net.runelite.api.events.NpcDespawned;
 import net.runelite.client.Notifier;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 
 @PluginDescriptor(
 	name = "Random Events",
 	description = "Notify when random events appear and remove talk/dismiss options on events that aren't yours.",
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.UTILITY
 )
 @Slf4j
 public class RandomEventPlugin extends Plugin
@@ -96,6 +99,17 @@ public class RandomEventPlugin extends Plugin
 	@Inject
 	private RandomEventConfig config;
 
+	private boolean notifyAllEvents;
+	private boolean notifyDemon;
+	private boolean notifyForester;
+	private boolean notifyFrog;
+	private boolean notifyGenie;
+	private boolean notifyBob;
+	private boolean notifyGravedigger;
+	private boolean notifyMoM;
+	private boolean notifyQuiz;
+	private boolean notifyDunce;
+
 	@Provides
 	RandomEventConfig getConfig(ConfigManager configManager)
 	{
@@ -103,14 +117,20 @@ public class RandomEventPlugin extends Plugin
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void startUp()
+	{
+		updateConfig();
+	}
+
+	@Override
+	protected void shutDown()
 	{
 		lastNotificationTick = 0;
 		currentRandomEvent = null;
 	}
 
 	@Subscribe
-	public void onInteractingChanged(InteractingChanged event)
+	private void onInteractingChanged(InteractingChanged event)
 	{
 		Actor source = event.getSource();
 		Actor target = event.getTarget();
@@ -143,7 +163,7 @@ public class RandomEventPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onNpcDespawned(NpcDespawned npcDespawned)
+	private void onNpcDespawned(NpcDespawned npcDespawned)
 	{
 		NPC npc = npcDespawned.getNpc();
 
@@ -154,10 +174,10 @@ public class RandomEventPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onMenuEntryAdded(MenuEntryAdded event)
+	private void onMenuEntryAdded(MenuEntryAdded event)
 	{
-		if (event.getType() >= MenuAction.NPC_FIRST_OPTION.getId()
-			&& event.getType() <= MenuAction.NPC_FIFTH_OPTION.getId()
+		if (event.getOpcode() >= MenuOpcode.NPC_FIRST_OPTION.getId()
+			&& event.getOpcode() <= MenuOpcode.NPC_FIFTH_OPTION.getId()
 			&& EVENT_OPTIONS.contains(event.getOption()))
 		{
 			NPC npc = client.getCachedNPCs()[event.getIdentifier()];
@@ -170,7 +190,7 @@ public class RandomEventPlugin extends Plugin
 
 	private boolean shouldNotify(int id)
 	{
-		if (config.notifyAllEvents())
+		if (this.notifyAllEvents)
 		{
 			return true;
 		}
@@ -178,30 +198,55 @@ public class RandomEventPlugin extends Plugin
 		switch (id)
 		{
 			case NpcID.SERGEANT_DAMIEN_6743:
-				return config.notifyDemon();
+				return this.notifyDemon;
 			case NpcID.FREAKY_FORESTER_6748:
-				return config.notifyForester();
+				return this.notifyForester;
 			case NpcID.FROG_5429:
-				return config.notifyFrog();
+				return this.notifyFrog;
 			case NpcID.GENIE:
 			case NpcID.GENIE_327:
-				return config.notifyGenie();
+				return this.notifyGenie;
 			case NpcID.EVIL_BOB:
 			case NpcID.EVIL_BOB_6754:
-				return config.notifyBob();
+				return this.notifyBob;
 			case NpcID.LEO_6746:
-				return config.notifyGravedigger();
+				return this.notifyGravedigger;
 			case NpcID.MYSTERIOUS_OLD_MAN_6750:
 			case NpcID.MYSTERIOUS_OLD_MAN_6751:
 			case NpcID.MYSTERIOUS_OLD_MAN_6752:
 			case NpcID.MYSTERIOUS_OLD_MAN_6753:
-				return config.notifyMoM();
+				return this.notifyMoM;
 			case NpcID.QUIZ_MASTER_6755:
-				return config.notifyQuiz();
+				return this.notifyQuiz;
 			case NpcID.DUNCE_6749:
-				return config.notifyDunce();
+				return this.notifyDunce;
 			default:
 				return false;
 		}
+	}
+
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (!"randomevents".equals(event.getGroup()))
+		{
+			return;
+		}
+
+		updateConfig();
+	}
+
+	private void updateConfig()
+	{
+		this.notifyAllEvents = config.notifyAllEvents();
+		this.notifyDemon = config.notifyDemon();
+		this.notifyForester = config.notifyForester();
+		this.notifyFrog = config.notifyFrog();
+		this.notifyGenie = config.notifyGenie();
+		this.notifyBob = config.notifyBob();
+		this.notifyGravedigger = config.notifyGravedigger();
+		this.notifyMoM = config.notifyMoM();
+		this.notifyQuiz = config.notifyQuiz();
+		this.notifyDunce = config.notifyDunce();
 	}
 }

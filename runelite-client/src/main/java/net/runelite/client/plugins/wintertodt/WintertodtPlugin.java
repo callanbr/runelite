@@ -26,28 +26,15 @@
 package net.runelite.client.plugins.wintertodt;
 
 import com.google.inject.Provides;
+import java.awt.Color;
 import java.time.Duration;
 import java.time.Instant;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import static net.runelite.api.AnimationID.CONSTRUCTION;
-import static net.runelite.api.AnimationID.FIREMAKING;
-import static net.runelite.api.AnimationID.FLETCHING_BOW_CUTTING;
-import static net.runelite.api.AnimationID.IDLE;
-import static net.runelite.api.AnimationID.LOOKING_INTO;
-import static net.runelite.api.AnimationID.WOODCUTTING_3A_AXE;
-import static net.runelite.api.AnimationID.WOODCUTTING_ADAMANT;
-import static net.runelite.api.AnimationID.WOODCUTTING_BLACK;
-import static net.runelite.api.AnimationID.WOODCUTTING_BRONZE;
-import static net.runelite.api.AnimationID.WOODCUTTING_CRYSTAL;
-import static net.runelite.api.AnimationID.WOODCUTTING_DRAGON;
-import static net.runelite.api.AnimationID.WOODCUTTING_INFERNAL;
-import static net.runelite.api.AnimationID.WOODCUTTING_IRON;
-import static net.runelite.api.AnimationID.WOODCUTTING_MITHRIL;
-import static net.runelite.api.AnimationID.WOODCUTTING_RUNE;
-import static net.runelite.api.AnimationID.WOODCUTTING_STEEL;
+import static net.runelite.api.AnimationID.*;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.InventoryID;
@@ -67,20 +54,28 @@ import net.runelite.client.Notifier;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
+import net.runelite.client.plugins.wintertodt.config.WintertodtNotifyMode;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ColorUtil;
 
 @PluginDescriptor(
 	name = "Wintertodt",
 	description = "Show helpful information for the Wintertodt boss",
-	tags = {"minigame", "firemaking", "boss"}
+	tags = {"minigame", "firemaking", "boss"},
+	type = PluginType.MINIGAME
 )
 @Slf4j
+@Singleton
 public class WintertodtPlugin extends Plugin
 {
 	private static final int WINTERTODT_REGION = 6462;
+
+	static final int WINTERTODT_ROOTS_MULTIPLIER = 10;
+	static final int WINTERTODT_KINDLING_MULTIPLIER = 25;
 
 	@Inject
 	private Notifier notifier;
@@ -104,13 +99,7 @@ public class WintertodtPlugin extends Plugin
 	private WintertodtActivity currentActivity = WintertodtActivity.IDLE;
 
 	@Getter(AccessLevel.PACKAGE)
-	private int inventoryScore;
-
-	@Getter(AccessLevel.PACKAGE)
-	private int totalPotentialinventoryScore;
-
-	@Getter(AccessLevel.PACKAGE)
-	private int numLogs;
+	private int numRoots;
 
 	@Getter(AccessLevel.PACKAGE)
 	private int numKindling;
@@ -121,6 +110,8 @@ public class WintertodtPlugin extends Plugin
 	private Instant lastActionTime;
 
 	private int previousTimerValue;
+	private WintertodtNotifyMode notifyCondition;
+	private Color damageNotificationColor;
 
 	@Provides
 	WintertodtConfig getConfig(ConfigManager configManager)
@@ -129,8 +120,11 @@ public class WintertodtPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+		this.notifyCondition = config.notifyCondition();
+		this.damageNotificationColor = config.damageNotificationColor();
+
 		reset();
 		overlayManager.add(overlay);
 	}
@@ -138,15 +132,27 @@ public class WintertodtPlugin extends Plugin
 	@Override
 	protected void shutDown() throws Exception
 	{
+		super.shutDown();
+
 		overlayManager.remove(overlay);
 		reset();
 	}
 
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("wintertodt"))
+		{
+			return;
+		}
+
+		this.notifyCondition = config.notifyCondition();
+		this.damageNotificationColor = config.damageNotificationColor();
+	}
+
 	private void reset()
 	{
-		inventoryScore = 0;
-		totalPotentialinventoryScore = 0;
-		numLogs = 0;
+		numRoots = 0;
 		numKindling = 0;
 		currentActivity = WintertodtActivity.IDLE;
 		lastActionTime = null;
@@ -163,7 +169,7 @@ public class WintertodtPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameTick(GameTick gameTick)
+	private void onGameTick(GameTick gameTick)
 	{
 		if (!isInWintertodtRegion())
 		{
@@ -188,7 +194,7 @@ public class WintertodtPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onVarbitChanged(VarbitChanged varbitChanged)
+	void onVarbitChanged(VarbitChanged varbitChanged)
 	{
 		int timerValue = client.getVar(Varbits.WINTERTODT_TIMER);
 		if (timerValue != previousTimerValue)
@@ -235,7 +241,7 @@ public class WintertodtPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onChatMessage(ChatMessage chatMessage)
+	private void onChatMessage(ChatMessage chatMessage)
 	{
 		if (!isInWintertodt)
 		{
@@ -301,7 +307,7 @@ public class WintertodtPlugin extends Plugin
 				wasDamaged = true;
 
 				// Recolor message for damage notification
-				messageNode.setRuneLiteFormatMessage(ColorUtil.wrapWithColorTag(messageNode.getValue(), config.damageNotificationColor()));
+				messageNode.setRuneLiteFormatMessage(ColorUtil.wrapWithColorTag(messageNode.getValue(), this.damageNotificationColor));
 				chatMessageManager.update(messageNode);
 				client.refreshChat();
 
@@ -328,7 +334,7 @@ public class WintertodtPlugin extends Plugin
 		{
 			boolean shouldNotify = false;
 
-			switch (config.notifyCondition())
+			switch (this.notifyCondition)
 			{
 				case ONLY_WHEN_INTERRUPTED:
 					if (wasInterrupted)
@@ -379,7 +385,7 @@ public class WintertodtPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onAnimationChanged(final AnimationChanged event)
+	private void onAnimationChanged(final AnimationChanged event)
 	{
 		if (!isInWintertodt)
 		{
@@ -429,7 +435,7 @@ public class WintertodtPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onItemContainerChanged(ItemContainerChanged event)
+	private void onItemContainerChanged(ItemContainerChanged event)
 	{
 		final ItemContainer container = event.getItemContainer();
 
@@ -440,20 +446,15 @@ public class WintertodtPlugin extends Plugin
 
 		final Item[] inv = container.getItems();
 
-		inventoryScore = 0;
-		totalPotentialinventoryScore = 0;
-		numLogs = 0;
+		numRoots = 0;
 		numKindling = 0;
 
 		for (Item item : inv)
 		{
-			inventoryScore += getPoints(item.getId());
-			totalPotentialinventoryScore += getPotentialPoints(item.getId());
-
 			switch (item.getId())
 			{
 				case BRUMA_ROOT:
-					++numLogs;
+					++numRoots;
 					break;
 				case BRUMA_KINDLING:
 					++numKindling;
@@ -461,13 +462,13 @@ public class WintertodtPlugin extends Plugin
 			}
 		}
 
-		//If we're currently fletching but there are no more logs, go ahead and abort fletching immediately
-		if (numLogs == 0 && currentActivity == WintertodtActivity.FLETCHING)
+		//If we're currently fletching but there are no more roots, go ahead and abort fletching immediately
+		if (numRoots == 0 && currentActivity == WintertodtActivity.FLETCHING)
 		{
 			currentActivity = WintertodtActivity.IDLE;
 		}
-		//Otherwise, if we're currently feeding the brazier but we've run out of both logs and kindling, abort the feeding activity
-		else if (numLogs == 0 && numKindling == 0 && currentActivity == WintertodtActivity.FEEDING_BRAZIER)
+		//Otherwise, if we're currently feeding the brazier but we've run out of both roots and kindling, abort the feeding activity
+		else if (numRoots == 0 && numKindling == 0 && currentActivity == WintertodtActivity.FEEDING_BRAZIER)
 		{
 			currentActivity = WintertodtActivity.IDLE;
 		}
@@ -477,30 +478,5 @@ public class WintertodtPlugin extends Plugin
 	{
 		currentActivity = action;
 		lastActionTime = Instant.now();
-	}
-
-	private static int getPoints(int id)
-	{
-		switch (id)
-		{
-			case BRUMA_ROOT:
-				return 10;
-			case BRUMA_KINDLING:
-				return 25;
-			default:
-				return 0;
-		}
-	}
-
-	private static int getPotentialPoints(int id)
-	{
-		switch (id)
-		{
-			case BRUMA_ROOT:
-			case BRUMA_KINDLING:
-				return 25;
-			default:
-				return 0;
-		}
 	}
 }

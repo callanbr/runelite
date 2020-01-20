@@ -32,9 +32,10 @@ import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
-import net.runelite.api.ItemComposition;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.ItemDefinition;
 import net.runelite.api.ItemID;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.game.ItemManager;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -61,6 +62,10 @@ public class BankPluginTest
 	@Bind
 	private BankConfig bankConfig;
 
+	@Mock
+	@Bind
+	private OpenOSRSConfig openOSRSConfig;
+
 	@Inject
 	private BankPlugin bankPlugin;
 
@@ -79,7 +84,7 @@ public class BankPluginTest
 		when(itemContainer.getItems()).thenReturn(new Item[]{new Item(itemId, 30)});
 		when(client.getItemContainer(InventoryID.BANK)).thenReturn(itemContainer);
 
-		ItemComposition comp = mock(ItemComposition.class);
+		ItemDefinition comp = mock(ItemDefinition.class);
 
 		// 60k HA price * 30 = 1.8m
 		when(comp.getPrice())
@@ -88,7 +93,7 @@ public class BankPluginTest
 		// 400k GE Price * 30 = 12m
 		when(itemManager.getItemPrice(itemId))
 			.thenReturn(400_000);
-		when(itemManager.getItemComposition(itemId))
+		when(itemManager.getItemDefinition(itemId))
 			.thenReturn(comp);
 
 		assertTrue(bankPlugin.valueSearch(itemId, ">500k"));

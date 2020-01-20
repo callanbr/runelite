@@ -36,7 +36,7 @@ public class ContainableFrame extends JFrame
 	{
 		ALWAYS,
 		RESIZING,
-		NEVER;
+		NEVER
 	}
 
 	private static final int SCREEN_EDGE_CLOSE_DISTANCE = 40;
@@ -45,6 +45,17 @@ public class ContainableFrame extends JFrame
 	private ExpandResizeType expandResizeType;
 	private Mode containedInScreen;
 	private boolean expandedClientOppositeDirection;
+
+	ContainableFrame()
+	{
+		addWindowStateListener(windowEvent ->
+		{
+			if (windowEvent.getNewState() == Frame.NORMAL)
+			{
+				revalidateMinimumSize();
+			}
+		});
+	}
 
 	public void setContainedInScreen(Mode value)
 	{
@@ -95,6 +106,7 @@ public class ContainableFrame extends JFrame
 	/**
 	 * Expand frame by specified value. If the frame is going to be expanded outside of screen push the frame to
 	 * the side.
+	 *
 	 * @param value size to expand frame by
 	 */
 	public void expandBy(final int value)
@@ -131,6 +143,7 @@ public class ContainableFrame extends JFrame
 
 				if (wouldExpandThroughEdge)
 				{
+
 					if (!isFrameCloseToRightEdge() || isFrameCloseToLeftEdge())
 					{
 						// Move the window to the edge
@@ -154,6 +167,7 @@ public class ContainableFrame extends JFrame
 	/**
 	 * Contract frame by specified value. If new frame size is less than it's minimum size, force the minimum size.
 	 * If the frame was pushed from side before, restore it's original position.
+	 *
 	 * @param value value to contract frame by
 	 */
 	public void contractBy(final int value)

@@ -34,6 +34,17 @@ import net.runelite.client.config.ModifierlessKeybind;
 public interface KeyRemappingConfig extends Config
 {
 	@ConfigItem(
+		position = 0,
+		keyName = "hideDisplayName",
+		name = "Hide display name",
+		description = "Hides the display name from showing before \"Press Enter to Chat...\""
+	)
+	default boolean hideDisplayName()
+	{
+		return false;
+	}
+
+	@ConfigItem(
 		position = 1,
 		keyName = "cameraRemap",
 		name = "Remap Camera",
@@ -240,5 +251,38 @@ public interface KeyRemappingConfig extends Config
 	default ModifierlessKeybind esc()
 	{
 		return new ModifierlessKeybind(KeyEvent.VK_ESCAPE, 0);
+	}
+
+	@ConfigItem(
+		position = 20,
+		keyName = "ctrl",
+		name = "CTRL",
+		description = "The key which will replace {CTRL}."
+	)
+	default ModifierlessKeybind ctrl()
+	{
+		return new ModifierlessKeybind(KeyEvent.VK_CONTROL, 0);
+	}
+	
+	@ConfigItem(
+		position = 21,
+		keyName = "alt",
+		name = "ALT",
+		description = "The key which will replace {ALT}."
+	)
+	default ModifierlessKeybind alt()
+	{
+		return new ModifierlessKeybind(KeyEvent.VK_ALT, 0);
+	}
+	
+	@ConfigItem(
+		position = 22,
+		keyName = "shift",
+		name = "SHIFT",
+		description = "The key which will replace {SHIFT}."
+	)
+	default ModifierlessKeybind shift()
+	{
+		return new ModifierlessKeybind(KeyEvent.VK_SHIFT, 0);
 	}
 }

@@ -29,11 +29,15 @@ import com.google.inject.Provides;
 import java.awt.Color;
 import java.util.Arrays;
 import javax.inject.Inject;
+import javax.inject.Singleton;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.util.Text;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetID;
 import net.runelite.api.widgets.WidgetInfo;
@@ -48,8 +52,10 @@ import static net.runelite.api.widgets.WidgetInfo.LIGHT_BOX_BUTTON_H;
 import static net.runelite.api.widgets.WidgetInfo.TO_GROUP;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.plugins.puzzlesolver.lightbox.Combination;
 import net.runelite.client.plugins.puzzlesolver.lightbox.LightBox;
 import net.runelite.client.plugins.puzzlesolver.lightbox.LightboxSolution;
@@ -57,14 +63,15 @@ import net.runelite.client.plugins.puzzlesolver.lightbox.LightboxSolver;
 import net.runelite.client.plugins.puzzlesolver.lightbox.LightboxState;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ColorUtil;
-import net.runelite.client.util.Text;
 
 @PluginDescriptor(
 	name = "Puzzle Solver",
 	description = "Show you where to click to solve puzzle boxes",
-	tags = {"clues", "scrolls", "overlay"}
+	tags = {"clues", "scrolls", "overlay"},
+	type = PluginType.UTILITY
 )
 @Slf4j
+@Singleton
 public class PuzzleSolverPlugin extends Plugin
 {
 	private static final Color CORRECT_MUSEUM_PUZZLE_ANSWER_COLOR = new Color(0, 248, 128);
@@ -78,19 +85,31 @@ public class PuzzleSolverPlugin extends Plugin
 	@Inject
 	private Client client;
 
+	@Inject
+	private PuzzleSolverConfig config;
+
 	private LightboxState lightbox;
-	private LightboxState[] changes = new LightboxState[LightBox.COMBINATIONS_POWER];
+	private final LightboxState[] changes = new LightboxState[LightBox.COMBINATIONS_POWER];
 	private Combination lastClick;
 	private boolean lastClickInvalid;
 
+	@Getter(AccessLevel.PACKAGE)
+	private boolean displaySolution;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean displayRemainingMoves;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean drawDots;
+
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+		updateConfig();
+
 		overlayManager.add(overlay);
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		overlayManager.remove(overlay);
 	}
@@ -102,7 +121,7 @@ public class PuzzleSolverPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onWidgetLoaded(WidgetLoaded widget)
+	private void onWidgetLoaded(WidgetLoaded widget)
 	{
 		if (widget.getGroupId() != WidgetID.VARROCK_MUSEUM_QUIZ_GROUP_ID)
 		{
@@ -136,9 +155,9 @@ public class PuzzleSolverPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked)
+	private void onMenuOptionClicked(MenuOptionClicked menuOptionClicked)
 	{
-		int widgetId = menuOptionClicked.getWidgetId();
+		int widgetId = menuOptionClicked.getParam1();
 		if (TO_GROUP(widgetId) != WidgetID.LIGHT_BOX_GROUP_ID)
 		{
 			return;
@@ -279,5 +298,21 @@ public class PuzzleSolverPlugin extends Plugin
 				title.setText("Light box - Solution: unknown");
 			}
 		}
+	}
+
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (event.getGroup().equals("puzzlesolver"))
+		{
+			updateConfig();
+		}
+	}
+
+	private void updateConfig()
+	{
+		this.displaySolution = config.displaySolution();
+		this.displayRemainingMoves = config.displayRemainingMoves();
+		this.drawDots = config.drawDots();
 	}
 }

@@ -25,13 +25,14 @@
 package net.runelite.client.events;
 
 import lombok.Value;
+import net.runelite.api.events.Event;
 import net.runelite.http.api.worlds.WorldResult;
 
 /**
  * Fired when the @{link net.runelite.client.game.WorldService} refreshes the world list
  */
 @Value
-public class WorldsFetch
+public class WorldsFetch implements Event
 {
 	private final WorldResult worldResult;
 }

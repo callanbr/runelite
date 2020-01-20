@@ -37,11 +37,9 @@ import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
 import javax.swing.text.JTextComponent;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.ClanMemberManager;
+import net.runelite.api.ClanMember;
 import net.runelite.api.Client;
 import net.runelite.api.Friend;
-import net.runelite.api.Nameable;
-import net.runelite.api.NameableContainer;
 import net.runelite.api.Player;
 
 @Slf4j
@@ -50,7 +48,7 @@ class NameAutocompleter implements KeyListener
 	/**
 	 * Non-breaking space character.
 	 */
-	private static final String NBSP = Character.toString((char)160);
+	private static final String NBSP = Character.toString((char) 160);
 
 	/**
 	 * Character class for characters that cannot be in an RSN.
@@ -70,7 +68,7 @@ class NameAutocompleter implements KeyListener
 	private Pattern autocompleteNamePattern;
 
 	@Inject
-	private NameAutocompleter(@Nullable Client client)
+	private NameAutocompleter(@Nullable final Client client)
 	{
 		this.client = client;
 	}
@@ -90,7 +88,7 @@ class NameAutocompleter implements KeyListener
 	@Override
 	public void keyTyped(KeyEvent e)
 	{
-		final JTextComponent input = (JTextComponent)e.getSource();
+		final JTextComponent input = (JTextComponent) e.getSource();
 		final String inputText = input.getText();
 
 		// Only autocomplete if the selection end is at the end of the text.
@@ -145,7 +143,7 @@ class NameAutocompleter implements KeyListener
 
 	private void newAutocomplete(KeyEvent e)
 	{
-		final JTextComponent input = (JTextComponent)e.getSource();
+		final JTextComponent input = (JTextComponent) e.getSource();
 		final String inputText = input.getText();
 		final String nameStart = inputText.substring(0, input.getSelectionStart()) + e.getKeyChar();
 
@@ -193,11 +191,12 @@ class NameAutocompleter implements KeyListener
 
 		// TODO: Search lookup history
 
-		NameableContainer<Friend> friendContainer = client.getFriendContainer();
-		if (friendContainer != null)
+		Friend[] friends = client.getFriends();
+		if (friends != null)
 		{
-			autocompleteName = Arrays.stream(friendContainer.getMembers())
-				.map(Nameable::getName)
+			autocompleteName = Arrays.stream(friends)
+				.filter(Objects::nonNull)
+				.map(Friend::getName)
 				.filter(n -> pattern.matcher(n).matches())
 				.findFirst();
 		}
@@ -205,11 +204,12 @@ class NameAutocompleter implements KeyListener
 		// Search clan if a friend wasn't found
 		if (!autocompleteName.isPresent())
 		{
-			final ClanMemberManager clanMemberManager = client.getClanMemberManager();
-			if (clanMemberManager != null)
+			final ClanMember[] clannies = client.getClanMembers();
+			if (clannies != null)
 			{
-				autocompleteName = Arrays.stream(clanMemberManager.getMembers())
-					.map(Nameable::getName)
+				autocompleteName = Arrays.stream(clannies)
+					.filter(Objects::nonNull)
+					.map(ClanMember::getUsername)
 					.filter(n -> pattern.matcher(n).matches())
 					.findFirst();
 			}

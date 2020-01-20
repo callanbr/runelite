@@ -24,18 +24,21 @@
  */
 package net.runelite.client.plugins.raids;
 
+import com.google.common.base.Joiner;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import lombok.AccessLevel;
 import lombok.Getter;
 import net.runelite.client.plugins.raids.solver.Layout;
 import net.runelite.client.plugins.raids.solver.Room;
 
 class Raid
 {
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final RaidRoom[] rooms = new RaidRoom[16];
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private Layout layout;
 
 	void updateLayout(Layout layout)
@@ -70,7 +73,7 @@ class Raid
 		return rooms[position];
 	}
 
-	public void setRoom(RaidRoom room, int position)
+	void setRoom(RaidRoom room, int position)
 	{
 		if (position < rooms.length)
 		{
@@ -98,6 +101,33 @@ class Raid
 		return combatRooms.toArray(new RaidRoom[0]);
 	}
 
+	String getRotationString()
+	{
+		return Joiner.on(",").join(Arrays.stream(getCombatRooms()).map(RaidRoom::getName).toArray());
+	}
+
+	private RaidRoom[] getAllRooms()
+	{
+		List<RaidRoom> getAllRooms = new ArrayList<>();
+
+		for (Room room : layout.getRooms())
+		{
+			if (room == null)
+			{
+				continue;
+			}
+
+			getAllRooms.add(rooms[room.getPosition()]);
+		}
+
+		return getAllRooms.toArray(new RaidRoom[0]);
+	}
+
+	String getFullRotationString()
+	{
+		return Joiner.on(",").join(Arrays.stream(getAllRooms()).toArray());
+	}
+
 	void setCombatRooms(RaidRoom[] combatRooms)
 	{
 		int index = 0;
@@ -117,7 +147,7 @@ class Raid
 		}
 	}
 
-	public String toCode()
+	String toCode()
 	{
 		StringBuilder builder = new StringBuilder();
 
@@ -163,8 +193,16 @@ class Raid
 	{
 		final StringBuilder sb = new StringBuilder();
 
-		for (RaidRoom room : getOrderedRooms())
+		for (Room r : getLayout().getRooms())
 		{
+			final int position = r.getPosition();
+			final RaidRoom room = getRoom(position);
+
+			if (room == null)
+			{
+				continue;
+			}
+
 			switch (room.getType())
 			{
 				case PUZZLE:

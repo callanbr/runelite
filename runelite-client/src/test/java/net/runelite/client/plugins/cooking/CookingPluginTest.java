@@ -33,7 +33,8 @@ import net.runelite.api.Client;
 import net.runelite.api.GraphicID;
 import net.runelite.api.Player;
 import net.runelite.api.events.ChatMessage;
-import net.runelite.api.events.GraphicChanged;
+import net.runelite.api.events.SpotAnimationChanged;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
@@ -89,6 +90,10 @@ public class CookingPluginTest
 	@Bind
 	OverlayManager overlayManager;
 
+	@Mock
+	@Bind
+	private OpenOSRSConfig openOSRSConfig;
+
 	@Before
 	public void before()
 	{
@@ -110,17 +115,18 @@ public class CookingPluginTest
 	}
 
 	@Test
-	public void testOnGraphicChanged()
+	public void testOnSpotAnimationChanged()
 	{
 		Player player = mock(Player.class);
-		when(player.getGraphic()).thenReturn(GraphicID.WINE_MAKE);
+		when(player.getSpotAnimation()).thenReturn(GraphicID.WINE_MAKE);
 
-		when(config.fermentTimer()).thenReturn(true);
+		cookingPlugin.setFermentTimer(true);
+
 		when(client.getLocalPlayer()).thenReturn(player);
 
-		GraphicChanged graphicChanged = new GraphicChanged();
+		SpotAnimationChanged graphicChanged = new SpotAnimationChanged();
 		graphicChanged.setActor(player);
-		cookingPlugin.onGraphicChanged(graphicChanged);
+		cookingPlugin.onSpotAnimationChanged(graphicChanged);
 
 		verify(infoBoxManager).addInfoBox(any(FermentTimer.class));
 	}

@@ -50,7 +50,6 @@ import net.runelite.api.SpriteID;
 import net.runelite.api.VarClientInt;
 import net.runelite.api.VarPlayer;
 import net.runelite.api.events.AreaSoundEffectPlayed;
-import net.runelite.client.events.ConfigChanged;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.events.VarClientIntChanged;
@@ -66,15 +65,18 @@ import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
 import net.runelite.client.game.chatbox.ChatboxTextInput;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 
 @PluginDescriptor(
 	name = "Music",
 	description = "Adds search and filter for the music list, and additional volume control",
-	tags = {"sound", "volume"}
+	tags = {"sound", "volume"},
+	type = PluginType.MISCELLANEOUS
 )
 public class MusicPlugin extends Plugin
 {
@@ -106,6 +108,7 @@ public class MusicPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+
 		clientThread.invoke(() ->
 		{
 			addMusicButtons();
@@ -135,7 +138,7 @@ public class MusicPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
+	private void onGameStateChanged(GameStateChanged gameStateChanged)
 	{
 		if (gameStateChanged.getGameState() == GameState.LOGIN_SCREEN)
 		{
@@ -146,7 +149,7 @@ public class MusicPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onWidgetLoaded(WidgetLoaded widgetLoaded)
+	private void onWidgetLoaded(WidgetLoaded widgetLoaded)
 	{
 		if (widgetLoaded.getGroupId() == WidgetID.MUSIC_GROUP_ID)
 		{
@@ -202,7 +205,7 @@ public class MusicPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onVarClientIntChanged(VarClientIntChanged varClientIntChanged)
+	private void onVarClientIntChanged(VarClientIntChanged varClientIntChanged)
 	{
 		if (isChatboxOpen() && !isOnMusicTab())
 		{
@@ -210,14 +213,15 @@ public class MusicPlugin extends Plugin
 		}
 	}
 
+
 	@Subscribe
-	public void onVolumeChanged(VolumeChanged volumeChanged)
+	private void onVolumeChanged(VolumeChanged volumeChanged)
 	{
 		applyMusicVolumeConfig();
 	}
 
 	@Subscribe
-	public void onConfigChanged(ConfigChanged configChanged)
+	private void onConfigChanged(ConfigChanged configChanged)
 	{
 		if (configChanged.getGroup().equals("music"))
 		{
@@ -250,7 +254,7 @@ public class MusicPlugin extends Plugin
 
 	private boolean isOnMusicTab()
 	{
-		return client.getVar(VarClientInt.INVENTORY_TAB) == 13;
+		return client.getVar(VarClientInt.INTERFACE_TAB) == 13;
 	}
 
 	private boolean isChatboxOpen()
@@ -550,18 +554,17 @@ public class MusicPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onScriptCallbackEvent(ScriptCallbackEvent ev)
+	private void onScriptCallbackEvent(ScriptCallbackEvent ev)
 	{
-		switch (ev.getEventName())
+		// We have to override this script because it gets invoked periodically from the server
+		if ("optionsAllSounds".equals(ev.getEventName()))
 		{
-			case "optionsAllSounds":
-				// We have to override this script because it gets invoked periodically from the server
-				client.getIntStack()[client.getIntStackSize() - 1] = -1;
+			client.getIntStack()[client.getIntStackSize() - 1] = -1;
 		}
 	}
 
 	@Subscribe
-	public void onAreaSoundEffectPlayed(AreaSoundEffectPlayed areaSoundEffectPlayed)
+	private void onAreaSoundEffectPlayed(AreaSoundEffectPlayed areaSoundEffectPlayed)
 	{
 		Actor source = areaSoundEffectPlayed.getSource();
 		int soundId = areaSoundEffectPlayed.getSoundId();

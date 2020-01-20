@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2017, Tyler <https://github.com/tylerthardy>
+ * Copyright (c) 2019, Gamer1120 <https://github.com/Gamer1120>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,30 +26,40 @@
 package net.runelite.client.plugins.herbiboars;
 
 import com.google.inject.Inject;
+import com.google.inject.Singleton;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
-import java.awt.Shape;
 import java.util.Set;
+import net.runelite.api.Client;
+import net.runelite.api.NPC;
+import net.runelite.api.NpcID;
 import net.runelite.api.TileObject;
 import net.runelite.api.coords.WorldPoint;
+import net.runelite.client.graphics.ModelOutlineRenderer;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayUtil;
 
+@Singleton
 class HerbiboarOverlay extends Overlay
 {
+	private static final Color TRANSPARENT = new Color(0, 0, 0, 0);
+
+	private final Client client;
+
 	private final HerbiboarPlugin plugin;
-	private final HerbiboarConfig config;
+	private final ModelOutlineRenderer modelOutlineRenderer;
 
 	@Inject
-	public HerbiboarOverlay(HerbiboarPlugin plugin, HerbiboarConfig config)
+	public HerbiboarOverlay(final HerbiboarPlugin plugin, ModelOutlineRenderer modelOutlineRenderer, Client client)
 	{
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.ABOVE_SCENE);
 		this.plugin = plugin;
-		this.config = config;
+		this.modelOutlineRenderer = modelOutlineRenderer;
+		this.client = client;
 	}
 
 	@Override
@@ -64,30 +75,36 @@ class HerbiboarOverlay extends Overlay
 		int finishId = plugin.getFinishId();
 
 		// Draw start objects
-		if (config.isStartShown() && (currentTrail == null && finishId == 0))
+		if (plugin.isStartShown() && currentTrail == null && finishId == 0 && !plugin.isHerbiboarRendered())
 		{
 			plugin.getStarts().values().forEach((obj) ->
-			{
-				OverlayUtil.renderTileOverlay(graphics, obj, "", config.getStartColor());
-			});
+				OverlayUtil.renderTileOverlay(graphics, obj, "", plugin.getGetStartColor()));
 		}
 
 		// Draw trails
-		if (config.isTrailShown())
+		Set<Integer> shownTrailIds;
+		if (plugin.isTrailShown())
 		{
-			Set<Integer> shownTrailIds = plugin.getShownTrails();
+			if (plugin.isOnlyCurrentTrailShown())
+			{
+				shownTrailIds = plugin.getCurrentTrailIds();
+			}
+			else
+			{
+				shownTrailIds = plugin.getShownTrails();
+			}
 			plugin.getTrails().values().forEach((x) ->
 			{
 				int id = x.getId();
 				if (shownTrailIds.contains(id) && (finishId > 0 || (currentTrail != null && currentTrail.getTrailId() != id && currentTrail.getTrailId() + 1 != id)))
 				{
-					OverlayUtil.renderTileOverlay(graphics, x, "", config.getTrailColor());
+					OverlayUtil.renderTileOverlay(graphics, x, "", plugin.getGetTrailColor());
 				}
 			});
 		}
 
 		// Draw trail objects (mushrooms, mud, etc)
-		if (config.isObjectShown() && currentTrail != null)
+		if (plugin.isObjectShown() && currentTrail != null)
 		{
 			int currentPath = plugin.getCurrentPath();
 			WorldPoint[] trailLocs = currentTrail.getObjectLocs(currentPath);
@@ -99,53 +116,73 @@ class HerbiboarOverlay extends Overlay
 				}
 
 				TileObject object = plugin.getTrailObjects().get(trailLoc);
+
 				if (object != null)
 				{
-					if (config.showClickBoxes())
+					if (plugin.isShowOutlines())
 					{
-						Shape clickbox = object.getClickbox();
-						if (clickbox != null)
-						{
-							graphics.setColor(config.getObjectColor());
-							graphics.draw(clickbox);
-							graphics.setColor(new Color(255, 0, 255, 20));
-							graphics.fill(clickbox);
-						}
+						renderOutline(object, new Color(255, 0, 255, 20));
 					}
 					else
 					{
-						OverlayUtil.renderTileOverlay(graphics, object, "", config.getObjectColor());
+						OverlayUtil.renderTileOverlay(graphics, object, "", plugin.getGetObjectColor());
 					}
 				}
 			}
 		}
 
 		// Draw finish tunnels
-		if (config.isTunnelShown() && finishId > 0)
+		if (plugin.isTunnelShown() && finishId > 0)
 		{
 			WorldPoint finishLoc = plugin.getEndLocations().get(finishId - 1);
 			TileObject object = plugin.getTunnels().get(finishLoc);
 			if (object != null)
 			{
-				if (config.showClickBoxes())
+				if (plugin.isShowOutlines())
 				{
-					Shape clickbox = object.getClickbox();
-					if (clickbox != null)
-					{
-						Color col = config.getObjectColor();
-						graphics.setColor(col);
-						graphics.draw(clickbox);
-						graphics.setColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), 20));
-						graphics.fill(clickbox);
-					}
+					Color col = plugin.getGetObjectColor();
+					renderOutline(object, new Color(col.getRed(), col.getGreen(), col.getBlue(), 20));
 				}
 				else
 				{
-					OverlayUtil.renderTileOverlay(graphics, object, "", config.getTunnelColor());
+					OverlayUtil.renderTileOverlay(graphics, object, "", plugin.getGetTunnelColor());
 				}
 			}
 		}
 
+		// Draw herbiboar
+		if (plugin.isHerbiboarRendered())
+		{
+			for (NPC npc : client.getNpcs())
+			{
+				if (npc.getId() == NpcID.HERBIBOAR || npc.getId() == NpcID.HERBIBOAR_7786)
+				{
+					modelOutlineRenderer.drawOutline(npc, 2, plugin.getGetObjectColor());
+				}
+			}
+		}
 		return null;
+	}
+
+	private void renderOutline(TileObject object, Color color)
+	{
+		switch (plugin.getOutlineStyle())
+		{
+			case THIN_OUTLINE:
+				modelOutlineRenderer.drawOutline(object, 1, color);
+				break;
+
+			case OUTLINE:
+				modelOutlineRenderer.drawOutline(object, 2, color);
+				break;
+
+			case THIN_GLOW:
+				modelOutlineRenderer.drawOutline(object, 4, color, TRANSPARENT);
+				break;
+
+			case GLOW:
+				modelOutlineRenderer.drawOutline(object, 8, color, TRANSPARENT);
+				break;
+		}
 	}
 }

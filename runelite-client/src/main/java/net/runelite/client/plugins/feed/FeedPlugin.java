@@ -33,12 +33,14 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
@@ -50,9 +52,11 @@ import net.runelite.http.api.feed.FeedResult;
 	name = "News Feed",
 	description = "Show the latest RuneLite blog posts, OSRS news, and JMod Twitter posts",
 	tags = {"external", "integration", "panel", "twitter"},
-	loadWhenOutdated = true
+	loadWhenOutdated = true,
+	type = PluginType.MISCELLANEOUS
 )
 @Slf4j
+@Singleton
 public class FeedPlugin extends Plugin
 {
 	@Inject
@@ -70,7 +74,7 @@ public class FeedPlugin extends Plugin
 	private FeedPanel feedPanel;
 	private NavigationButton navButton;
 
-	private Supplier<FeedResult> feedSupplier = Suppliers.memoizeWithExpiration(() ->
+	private final Supplier<FeedResult> feedSupplier = Suppliers.memoizeWithExpiration(() ->
 	{
 		try
 		{
@@ -84,7 +88,7 @@ public class FeedPlugin extends Plugin
 	}, 10, TimeUnit.MINUTES);
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
 		feedPanel = new FeedPanel(config, feedSupplier);
 
@@ -102,7 +106,7 @@ public class FeedPlugin extends Plugin
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		clientToolbar.removeNavigation(navButton);
 	}
@@ -113,7 +117,7 @@ public class FeedPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onConfigChanged(ConfigChanged event)
+	private void onConfigChanged(ConfigChanged event)
 	{
 		if (event.getGroup().equals("feed"))
 		{

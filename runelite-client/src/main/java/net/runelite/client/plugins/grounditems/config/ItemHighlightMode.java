@@ -24,15 +24,16 @@
  */
 package net.runelite.client.plugins.grounditems.config;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-@Getter
+@Getter(AccessLevel.PUBLIC)
 @RequiredArgsConstructor
 public enum ItemHighlightMode
 {
 	OVERLAY("Overlay"),
-	MENU("Right-click menu"),
+	MENU("Right-click"),
 	BOTH("Both");
 
 	private final String name;

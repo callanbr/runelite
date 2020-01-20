@@ -43,14 +43,15 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.BufferProvider;
 import net.runelite.api.Client;
 import net.runelite.api.Constants;
+import net.runelite.api.Entity;
 import net.runelite.api.MainBufferProvider;
 import net.runelite.api.NullItemID;
 import net.runelite.api.RenderOverview;
-import net.runelite.api.Renderable;
 import net.runelite.api.Skill;
 import net.runelite.api.WorldMapManager;
 import net.runelite.api.events.BeforeMenuRender;
 import net.runelite.api.events.BeforeRender;
+import net.runelite.api.events.Event;
 import net.runelite.api.events.FakeXpDrop;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
@@ -64,7 +65,6 @@ import net.runelite.client.Notifier;
 import net.runelite.client.RuneLite;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.eventbus.EventBus;
-import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.task.Scheduler;
@@ -91,9 +91,6 @@ public class Hooks implements Callbacks
 	private static final Client client = injector.getInstance(Client.class);
 	private static final OverlayRenderer renderer = injector.getInstance(OverlayRenderer.class);
 	private static final OverlayManager overlayManager = injector.getInstance(OverlayManager.class);
-
-	private static final GameTick GAME_TICK = new GameTick();
-	private static final BeforeRender BEFORE_RENDER = new BeforeRender();
 
 	@Inject
 	private EventBus eventBus;
@@ -142,6 +139,7 @@ public class Hooks implements Callbacks
 	/**
 	 * Get the Graphics2D for the MainBufferProvider image
 	 * This caches the Graphics2D instance so it can be reused
+	 *
 	 * @param mainBufferProvider
 	 * @return
 	 */
@@ -162,15 +160,15 @@ public class Hooks implements Callbacks
 	}
 
 	@Override
-	public void post(Object event)
+	public <T extends Event, E extends T> void post(Class<T> eventClass, E event)
 	{
-		eventBus.post(event);
+		eventBus.post(eventClass, event);
 	}
 
 	@Override
-	public void postDeferred(Object event)
+	public <T extends Event, E extends T> void postDeferred(Class<T> eventClass, E event)
 	{
-		deferredEventBus.post(event);
+		deferredEventBus.post(eventClass, event);
 	}
 
 	@Override
@@ -182,13 +180,13 @@ public class Hooks implements Callbacks
 
 			deferredEventBus.replay();
 
-			eventBus.post(GAME_TICK);
+			eventBus.post(GameTick.class, GameTick.INSTANCE);
 
 			int tick = client.getTickCount();
 			client.setTickCount(tick + 1);
 		}
 
-		eventBus.post(BEFORE_RENDER);
+		eventBus.post(BeforeRender.class, BeforeRender.INSTANCE);
 
 		clientThread.invoke();
 
@@ -403,8 +401,6 @@ public class Hooks implements Callbacks
 
 	/**
 	 * Copy an image
-	 * @param src
-	 * @return
 	 */
 	private static Image copy(Image src)
 	{
@@ -469,7 +465,6 @@ public class Hooks implements Callbacks
 		overlayManager.getItemWidgets().clear();
 	}
 
-	@Subscribe
 	public void onGameStateChanged(GameStateChanged gameStateChanged)
 	{
 		switch (gameStateChanged.getGameState())
@@ -505,16 +500,16 @@ public class Hooks implements Callbacks
 		deferredEventBus.replay();
 	}
 
-	public static void renderDraw(Renderable renderable, int orientation, int pitchSin, int pitchCos, int yawSin, int yawCos, int x, int y, int z, long hash)
+	public static void renderDraw(Entity entity, int orientation, int pitchSin, int pitchCos, int yawSin, int yawCos, int x, int y, int z, long hash)
 	{
 		DrawCallbacks drawCallbacks = client.getDrawCallbacks();
 		if (drawCallbacks != null)
 		{
-			drawCallbacks.draw(renderable, orientation, pitchSin, pitchCos, yawSin, yawCos, x, y, z, hash);
+			drawCallbacks.draw(entity, orientation, pitchSin, pitchCos, yawSin, yawCos, x, y, z, hash);
 		}
 		else
 		{
-			renderable.draw(orientation, pitchSin, pitchCos, yawSin, yawCos, x, y, z, hash);
+			entity.draw(orientation, pitchSin, pitchCos, yawSin, yawCos, x, y, z, hash);
 		}
 	}
 
@@ -550,11 +545,10 @@ public class Hooks implements Callbacks
 	public static boolean drawMenu()
 	{
 		BeforeMenuRender event = new BeforeMenuRender();
-		client.getCallbacks().post(event);
+		client.getCallbacks().post(BeforeMenuRender.class, event);
 		return event.isConsumed();
 	}
 
-	@Subscribe
 	public void onScriptCallbackEvent(ScriptCallbackEvent scriptCallbackEvent)
 	{
 		if (!scriptCallbackEvent.getEventName().equals("fakeXpDrop"))
@@ -573,6 +567,6 @@ public class Hooks implements Callbacks
 			skill,
 			xp
 		);
-		eventBus.post(fakeXpDrop);
+		eventBus.post(FakeXpDrop.class, fakeXpDrop);
 	}
 }

@@ -51,7 +51,14 @@ class ContainerCalculation
 	ContainerPrices calculate(Item[] items)
 	{
 		// Returns last calculation if inventory hasn't changed
-		final int newHash =  hashItems(items);
+
+		if (items == null)
+		{
+			return null;
+		}
+
+		final int newHash = hashItems(items);
+
 		if (containerPrices != null && hash == newHash)
 		{
 			return containerPrices;
@@ -83,7 +90,7 @@ class ContainerCalculation
 					alch += qty * 1000L;
 					break;
 				default:
-					final long storePrice = itemManager.getItemComposition(id).getPrice();
+					final long storePrice = itemManager.getItemDefinition(id).getPrice();
 					final long alchPrice = (long) (storePrice * Constants.HIGH_ALCHEMY_MULTIPLIER);
 					alch += alchPrice * qty;
 					ge += (long) itemManager.getItemPrice(id) * qty;

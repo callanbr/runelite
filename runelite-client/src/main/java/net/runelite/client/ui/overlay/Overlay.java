@@ -55,13 +55,14 @@ public abstract class Overlay implements LayoutableRenderableEntity
 		plugin = null;
 	}
 
-	protected Overlay(Plugin plugin)
+	protected Overlay(@Nullable Plugin plugin)
 	{
 		this.plugin = plugin;
 	}
 
 	/**
 	 * Overlay name, used for saving the overlay, needs to be unique
+	 *
 	 * @return overlay name
 	 */
 	public String getName()

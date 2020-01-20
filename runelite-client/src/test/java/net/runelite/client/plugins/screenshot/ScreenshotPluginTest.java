@@ -41,6 +41,7 @@ import static net.runelite.api.widgets.WidgetID.LEVEL_UP_GROUP_ID;
 import static net.runelite.api.widgets.WidgetInfo.DIALOG_SPRITE_TEXT;
 import static net.runelite.api.widgets.WidgetInfo.LEVEL_UP_LEVEL;
 import net.runelite.client.Notifier;
+import net.runelite.client.config.OpenOSRSConfig;
 import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.ui.ClientUI;
 import net.runelite.client.ui.DrawManager;
@@ -97,13 +98,18 @@ public class ScreenshotPluginTest
 	@Bind
 	ScheduledExecutorService service;
 
+	@Mock
+	@Bind
+	private OpenOSRSConfig openOSRSConfig;
+
 	@Before
 	public void before()
 	{
 		Guice.createInjector(BoundFieldModule.of(this)).injectMembers(this);
-		when(screenshotConfig.screenshotLevels()).thenReturn(true);
-		when(screenshotConfig.screenshotValuableDrop()).thenReturn(true);
-		when(screenshotConfig.screenshotUntradeableDrop()).thenReturn(true);
+		screenshotPlugin.setScreenshotRewards(true);
+		screenshotPlugin.setScreenshotLevels(true);
+		screenshotPlugin.setScreenshotValuableDrop(true);
+		screenshotPlugin.setScreenshotUntradeableDrop(true);
 	}
 
 	@Test
@@ -143,6 +149,7 @@ public class ScreenshotPluginTest
 		assertEquals(73, screenshotPlugin.gettheatreOfBloodNumber());
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testValuableDrop()
 	{
@@ -152,6 +159,7 @@ public class ScreenshotPluginTest
 		verify(drawManager).requestNextFrameListener(any(Consumer.class));
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testUntradeableDrop()
 	{
@@ -161,6 +169,7 @@ public class ScreenshotPluginTest
 		verify(drawManager).requestNextFrameListener(any(Consumer.class));
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testHitpointsLevel99()
 	{
@@ -169,18 +178,19 @@ public class ScreenshotPluginTest
 
 		when(levelChild.getText()).thenReturn("Your Hitpoints are now 99.");
 
-		assertEquals("Hitpoints(99)", screenshotPlugin.parseLevelUpWidget(LEVEL_UP_LEVEL));
+		assertEquals("Hitpoints(99)", screenshotPlugin.parseLevelUpWidget(client.getWidget(LEVEL_UP_LEVEL)));
 
 		WidgetLoaded event = new WidgetLoaded();
 		event.setGroupId(LEVEL_UP_GROUP_ID);
 		screenshotPlugin.onWidgetLoaded(event);
 
-		GameTick tick = new GameTick();
+		GameTick tick = GameTick.INSTANCE;
 		screenshotPlugin.onGameTick(tick);
 
 		verify(drawManager).requestNextFrameListener(any(Consumer.class));
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testFiremakingLevel9()
 	{
@@ -189,18 +199,19 @@ public class ScreenshotPluginTest
 
 		when(levelChild.getText()).thenReturn("Your Firemaking level is now 9.");
 
-		assertEquals("Firemaking(9)", screenshotPlugin.parseLevelUpWidget(LEVEL_UP_LEVEL));
+		assertEquals("Firemaking(9)", screenshotPlugin.parseLevelUpWidget(client.getWidget(LEVEL_UP_LEVEL)));
 
 		WidgetLoaded event = new WidgetLoaded();
 		event.setGroupId(LEVEL_UP_GROUP_ID);
 		screenshotPlugin.onWidgetLoaded(event);
 
-		GameTick tick = new GameTick();
+		GameTick tick = GameTick.INSTANCE;
 		screenshotPlugin.onGameTick(tick);
 
 		verify(drawManager).requestNextFrameListener(any(Consumer.class));
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testAttackLevel70()
 	{
@@ -209,18 +220,19 @@ public class ScreenshotPluginTest
 
 		when(levelChild.getText()).thenReturn("Your Attack level is now 70.");
 
-		assertEquals("Attack(70)", screenshotPlugin.parseLevelUpWidget(LEVEL_UP_LEVEL));
+		assertEquals("Attack(70)", screenshotPlugin.parseLevelUpWidget(client.getWidget(LEVEL_UP_LEVEL)));
 
 		WidgetLoaded event = new WidgetLoaded();
 		event.setGroupId(LEVEL_UP_GROUP_ID);
 		screenshotPlugin.onWidgetLoaded(event);
 
-		GameTick tick = new GameTick();
+		GameTick tick = GameTick.INSTANCE;
 		screenshotPlugin.onGameTick(tick);
 
 		verify(drawManager).requestNextFrameListener(any(Consumer.class));
 	}
 
+	@SuppressWarnings("unchecked")
 	@Test
 	public void testHunterLevel2()
 	{
@@ -229,13 +241,13 @@ public class ScreenshotPluginTest
 
 		when(levelChild.getText()).thenReturn("<col=000080>Congratulations, you've just advanced a Hunter level.<col=000000><br><br>Your Hunter level is now 2.");
 
-		assertEquals("Hunter(2)", screenshotPlugin.parseLevelUpWidget(DIALOG_SPRITE_TEXT));
+		assertEquals("Hunter(2)", screenshotPlugin.parseLevelUpWidget(client.getWidget(DIALOG_SPRITE_TEXT)));
 
 		WidgetLoaded event = new WidgetLoaded();
 		event.setGroupId(DIALOG_SPRITE_GROUP_ID);
 		screenshotPlugin.onWidgetLoaded(event);
 
-		GameTick tick = new GameTick();
+		GameTick tick = GameTick.INSTANCE;
 		screenshotPlugin.onGameTick(tick);
 
 		verify(drawManager).requestNextFrameListener(any(Consumer.class));

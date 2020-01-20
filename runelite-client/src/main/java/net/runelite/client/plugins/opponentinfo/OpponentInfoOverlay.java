@@ -32,13 +32,12 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
-import static net.runelite.api.MenuAction.RUNELITE_OVERLAY_CONFIG;
-import net.runelite.api.NPC;
-import net.runelite.api.Player;
-import net.runelite.client.game.HiscoreManager;
-import net.runelite.client.game.NPCManager;
+import static net.runelite.api.MenuOpcode.RUNELITE_OVERLAY_CONFIG;
+import net.runelite.api.Varbits;
+import net.runelite.api.util.Text;
 import net.runelite.client.ui.overlay.Overlay;
 import static net.runelite.client.ui.overlay.OverlayManager.OPTION_CONFIGURE;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
@@ -48,9 +47,8 @@ import net.runelite.client.ui.overlay.components.ComponentConstants;
 import net.runelite.client.ui.overlay.components.PanelComponent;
 import net.runelite.client.ui.overlay.components.ProgressBarComponent;
 import net.runelite.client.ui.overlay.components.TitleComponent;
-import net.runelite.client.util.Text;
-import net.runelite.http.api.hiscore.HiscoreResult;
 
+@Singleton
 class OpponentInfoOverlay extends Overlay
 {
 	private static final Color HP_GREEN = new Color(0, 146, 54, 230);
@@ -58,31 +56,23 @@ class OpponentInfoOverlay extends Overlay
 
 	private final Client client;
 	private final OpponentInfoPlugin opponentInfoPlugin;
-	private final OpponentInfoConfig opponentInfoConfig;
-	private final HiscoreManager hiscoreManager;
-	private final NPCManager npcManager;
 
 	private final PanelComponent panelComponent = new PanelComponent();
 
-	private Integer lastMaxHealth;
+	private int lastMaxHealth;
 	private int lastRatio = 0;
 	private int lastHealthScale = 0;
 	private String opponentName;
+	private String opponentsOpponentName;
 
 	@Inject
 	private OpponentInfoOverlay(
-		Client client,
-		OpponentInfoPlugin opponentInfoPlugin,
-		OpponentInfoConfig opponentInfoConfig,
-		HiscoreManager hiscoreManager,
-		NPCManager npcManager)
+		final Client client,
+		final OpponentInfoPlugin opponentInfoPlugin)
 	{
 		super(opponentInfoPlugin);
 		this.client = client;
 		this.opponentInfoPlugin = opponentInfoPlugin;
-		this.opponentInfoConfig = opponentInfoConfig;
-		this.hiscoreManager = hiscoreManager;
-		this.npcManager = npcManager;
 
 		setPosition(OverlayPosition.TOP_LEFT);
 		setPriority(OverlayPriority.HIGH);
@@ -109,22 +99,17 @@ class OpponentInfoOverlay extends Overlay
 			lastHealthScale = opponent.getHealth();
 			opponentName = Text.removeTags(opponent.getName());
 
-			lastMaxHealth = null;
-			if (opponent instanceof NPC)
+			lastMaxHealth = opponentInfoPlugin.getMaxHp(opponent);
+
+			final Actor opponentsOpponent = opponent.getInteracting();
+			if (opponentsOpponent != null
+				&& (opponentsOpponent != client.getLocalPlayer() || client.getVar(Varbits.MULTICOMBAT_AREA) == 1))
 			{
-				lastMaxHealth = npcManager.getHealth(opponentName, opponent.getCombatLevel());
+				opponentsOpponentName = Text.removeTags(opponentsOpponent.getName());
 			}
-			else if (opponent instanceof Player)
+			else
 			{
-				final HiscoreResult hiscoreResult = hiscoreManager.lookupAsync(opponentName, opponentInfoPlugin.getHiscoreEndpoint());
-				if (hiscoreResult != null)
-				{
-					final int hp = hiscoreResult.getHitpoints().getLevel();
-					if (hp > 0)
-					{
-						lastMaxHealth = hp;
-					}
-				}
+				opponentsOpponentName = null;
 			}
 		}
 
@@ -151,42 +136,12 @@ class OpponentInfoOverlay extends Overlay
 			progressBarComponent.setBackgroundColor(HP_RED);
 			progressBarComponent.setForegroundColor(HP_GREEN);
 
-			final HitpointsDisplayStyle displayStyle = opponentInfoConfig.hitpointsDisplayStyle();
+			final HitpointsDisplayStyle displayStyle = opponentInfoPlugin.getHitpointsDisplayStyle();
 
 			if ((displayStyle == HitpointsDisplayStyle.HITPOINTS || displayStyle == HitpointsDisplayStyle.BOTH)
-				&& lastMaxHealth != null)
+				&& lastMaxHealth != -1)
 			{
-				// This is the reverse of the calculation of healthRatio done by the server
-				// which is: healthRatio = 1 + (healthScale - 1) * health / maxHealth (if health > 0, 0 otherwise)
-				// It's able to recover the exact health if maxHealth <= healthScale.
-				int health = 0;
-				if (lastRatio > 0)
-				{
-					int minHealth = 1;
-					int maxHealth;
-					if (lastHealthScale > 1)
-					{
-						if (lastRatio > 1)
-						{
-							// This doesn't apply if healthRatio = 1, because of the special case in the server calculation that
-							// health = 0 forces healthRatio = 0 instead of the expected healthRatio = 1
-							minHealth = (lastMaxHealth * (lastRatio - 1) + lastHealthScale - 2) / (lastHealthScale - 1);
-						}
-						maxHealth = (lastMaxHealth * lastRatio - 1) / (lastHealthScale - 1);
-						if (maxHealth > lastMaxHealth)
-						{
-							maxHealth = lastMaxHealth;
-						}
-					}
-					else
-					{
-						// If healthScale is 1, healthRatio will always be 1 unless health = 0
-						// so we know nothing about the upper limit except that it can't be higher than maxHealth
-						maxHealth = lastMaxHealth;
-					}
-					// Take the average of min and max possible healths
-					health = (minHealth + maxHealth + 1) / 2;
-				}
+				int health = getExactHp(lastRatio, lastHealthScale, lastMaxHealth);
 
 				// Show both the hitpoint and percentage values if enabled in the config
 				final ProgressBarComponent.LabelDisplayMode progressBarDisplayMode = displayStyle == HitpointsDisplayStyle.BOTH ?
@@ -205,6 +160,59 @@ class OpponentInfoOverlay extends Overlay
 			panelComponent.getChildren().add(progressBarComponent);
 		}
 
+		// Opponents opponent
+		if (opponentsOpponentName != null && opponentInfoPlugin.isShowOpponentsOpponent())
+		{
+			textWidth = Math.max(textWidth, fontMetrics.stringWidth(opponentsOpponentName));
+			panelComponent.setPreferredSize(new Dimension(textWidth, 0));
+			panelComponent.getChildren().add(TitleComponent.builder()
+				.text(opponentsOpponentName)
+				.build());
+		}
+
 		return panelComponent.render(graphics);
+	}
+
+	static int getExactHp(int ratio, int health, int maxHp)
+	{
+		if (ratio < 0 || health <= 0 || maxHp == -1)
+		{
+			return -1;
+		}
+
+		int exactHealth = 0;
+
+		// This is the reverse of the calculation of healthRatio done by the server
+		// which is: healthRatio = 1 + (healthScale - 1) * health / maxHealth (if health > 0, 0 otherwise)
+		// It's able to recover the exact health if maxHealth <= healthScale.
+		if (ratio > 0)
+		{
+			int minHealth = 1;
+			int maxHealth;
+			if (health > 1)
+			{
+				if (ratio > 1)
+				{
+					// This doesn't apply if healthRatio = 1, because of the special case in the server calculation that
+					// health = 0 forces healthRatio = 0 instead of the expected healthRatio = 1
+					minHealth = (maxHp * (ratio - 1) + health - 2) / (health - 1);
+				}
+				maxHealth = (maxHp * ratio - 1) / (health - 1);
+				if (maxHealth > maxHp)
+				{
+					maxHealth = maxHp;
+				}
+			}
+			else
+			{
+				// If healthScale is 1, healthRatio will always be 1 unless health = 0
+				// so we know nothing about the upper limit except that it can't be higher than maxHealth
+				maxHealth = maxHp;
+			}
+			// Take the average of min and max possible healths
+			exactHealth = (minHealth + maxHealth + 1) / 2;
+		}
+
+		return exactHealth;
 	}
 }

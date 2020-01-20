@@ -33,12 +33,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.task.Schedule;
 import net.runelite.client.ui.overlay.OverlayManager;
 
@@ -46,8 +48,10 @@ import net.runelite.client.ui.overlay.OverlayManager;
 	name = "Team Capes",
 	description = "Show the different team capes in your area and the amount of each",
 	tags = {"overlay", "players"},
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.MISCELLANEOUS
 )
+@Singleton
 public class TeamCapesPlugin extends Plugin
 {
 	@Inject
@@ -69,13 +73,13 @@ public class TeamCapesPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
 		overlayManager.add(overlay);
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		overlayManager.remove(overlay);
 		teams.clear();
@@ -111,11 +115,11 @@ public class TeamCapesPlugin extends Plugin
 
 		// Sort teams by value in descending order and then by key in ascending order, limited to 5 entries
 		teams = teams.entrySet().stream()
-					.sorted(
-						Comparator.comparing(Map.Entry<Integer, Integer>::getValue, Comparator.reverseOrder())
-								.thenComparingInt(Map.Entry::getKey)
-					)
-					.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
+			.sorted(
+				Comparator.comparing(Map.Entry<Integer, Integer>::getValue, Comparator.reverseOrder())
+					.thenComparingInt(Map.Entry::getKey)
+			)
+			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
 	}
 
 	public Map<Integer, Integer> getTeams()

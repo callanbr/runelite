@@ -28,6 +28,7 @@ import java.awt.Rectangle;
 import java.util.Collection;
 import net.runelite.api.FontTypeFace;
 import net.runelite.api.Point;
+import net.runelite.api.Sprite;
 
 /**
  * Represents an on-screen UI element that is drawn on the canvas.
@@ -242,17 +243,10 @@ public interface Widget
 	void setName(String name);
 
 	/**
-	 * Gets the model ID displayed in the widget.
-	 *
-	 * @return the model ID
-	 */
-	int getModelId();
-
-	/**
 	 * Gets the sprite ID displayed in the widget.
 	 *
 	 * @return the sprite ID
-	 * @see net.runelite.api.SpriteID
+	 * SpriteID
 	 */
 	int getSpriteId();
 
@@ -260,7 +254,7 @@ public interface Widget
 	 * Sets the sprite ID displayed in the widget.
 	 *
 	 * @param spriteId the sprite ID
-	 * @see net.runelite.api.SpriteID
+	 * SpriteID
 	 */
 	void setSpriteId(int spriteId);
 
@@ -294,6 +288,76 @@ public interface Widget
 	int getIndex();
 
 	/**
+	 * Gets the model ID displayed in the widget.
+	 *
+	 * @return the model ID
+	 */
+	int getModelId();
+
+	/**
+	 * Sets the model ID displayed in the widget
+	 *
+	 * @param modelId the new model ID
+	 */
+	void setModelId(int modelId);
+
+	/**
+	 * Gets the x rotation of the model displayed in the widget
+	 *
+	 * @return the x rotation
+	 */
+	int getRotationX();
+
+	/**
+	 * Sets the x rotation of the model displayed in the widget
+	 *
+	 * @param rotationX 0 = no rotation, 2047 = full rotation, outside range = crash
+	 */
+	void setRotationX(int rotationX);
+
+	/**
+	 * Gets the y rotation of the model displayed in the widget
+	 *
+	 * @return the y rotation
+	 */
+	int getRotationY();
+
+	/**
+	 * Sets the y rotation of the model displayed in the widget
+	 *
+	 * @param rotationY 0 = no rotation, 2047 = full rotation, outside range = crash
+	 */
+	void setRotationY(int rotationY);
+
+	/**
+	 * Gets the z rotation of the model displayed in the widget
+	 *
+	 * @return the z rotation
+	 */
+	int getRotationZ();
+
+	/**
+	 * Sets the z rotation of the model displayed in the widget
+	 *
+	 * @param rotationZ 0 = no rotation, 2047 = full rotation, outside range = crash
+	 */
+	void setRotationZ(int rotationZ);
+
+	/**
+	 * Gets the amount zoomed in on the model displayed in the widget
+	 *
+	 * @return the amount zoomed in
+	 */
+	int getModelZoom();
+
+	/**
+	 * Sets the amount zoomed in on the model displayed in the widget
+	 * 
+	 * @param modelZoom the new zoom amount
+	 */
+	void setModelZoom(int modelZoom);
+
+	/**
 	 * Gets the location the widget is being drawn on the canvas.
 	 * <p>
 	 * This method accounts for the relative coordinates and bounds
@@ -306,7 +370,7 @@ public interface Widget
 	/**
 	 * Gets the width of the widget.
 	 * <p>
-	 * If this widget is storing any {@link WidgetItem}s, this value is
+	 * If this widget is storing any {@link // WidgetItem}s, this value is
 	 * used to store the number of item slot columns.
 	 *
 	 * @return the width
@@ -622,7 +686,9 @@ public interface Widget
 	 */
 	Object[] getOnLoadListener();
 
-	Object[] getOnInvTransmitListener();
+	Object[] getOnInvTransmit();
+
+	Object[] getOnOp();
 
 	/**
 	 * Returns the archive id of the font used
@@ -823,6 +889,36 @@ public interface Widget
 	 * Can widgets under this widgets be scrolled in this widgets bounding box
 	 */
 	void setNoScrollThrough(boolean noScrollThrough);
+
+	/**
+	 * Changes the parent ID for the widget
+	 */
+	void setParentId(int id);
+
+	/**
+	 * Changes the ID of the widget
+	 */
+	void setId(int id);
+
+	/**
+	 * Sets the index of this element
+	 */
+	void setIndex(int index);
+
+	/**
+	 * Seems like this needs to set to true when creating new widgets
+	 */
+	void setIsIf3(boolean isIf3);
+
+	/**
+	 * Returns yes if your mouse pointer is over this widget or any of it's children.
+	 */
+	boolean containsMouse();
+
+	/**
+	 * Gets the image which is (or should be) drawn on this widget
+	 */
+	Sprite getSprite();
 
 	/**
 	 * {@link net.runelite.api.VarPlayer}s that triggers this widgets varTransmitListener

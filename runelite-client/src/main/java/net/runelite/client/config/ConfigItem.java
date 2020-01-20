@@ -46,4 +46,46 @@ public @interface ConfigItem
 	String warning() default "";
 
 	boolean secret() default false;
+
+	String section() default "";
+
+	String titleSection() default "";
+
+	String unhide() default "";
+
+	String unhideValue() default "";
+
+	String hide() default "";
+
+	String hideValue() default "";
+
+	String enabledBy() default "";
+
+	String enabledByValue() default "";
+
+	String disabledBy() default "";
+
+	String disabledByValue() default "";
+
+	boolean parse() default false;
+
+	/**
+	 * For Config items that have a value of multiple enums,
+	 *
+	 * @return the number of rows that are display in the item without having to scroll.
+	 */
+	int displayRows() default 2;
+
+	Class<?> clazz() default void.class;
+
+	String method() default "";
+
+	/**
+	 * Use this to indicate the enum class that is going to be used in the multiple select config.
+	 * This implementation made debugging problems with multiple selects a lot easier
+	 *
+	 * @return The Enum that will be used for the multiple select
+	 */
+	Class<? extends Enum> enumClass() default Enum.class;
+
 }

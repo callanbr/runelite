@@ -29,25 +29,27 @@ package net.runelite.client.plugins.interfacestyles;
 import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.HealthBar;
+import net.runelite.api.Sprite;
 import net.runelite.api.SpriteID;
-import net.runelite.api.SpritePixels;
 import net.runelite.api.events.BeforeMenuRender;
-import net.runelite.api.events.ClientTick;
-import net.runelite.client.events.ConfigChanged;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.PostHealthBar;
+import net.runelite.api.events.WidgetPositioned;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.util.ImageUtil;
 
 @Slf4j
@@ -55,8 +57,10 @@ import net.runelite.client.util.ImageUtil;
 	name = "Interface Styles",
 	description = "Change the interface style to the 2005/2010 interface",
 	tags = {"2005", "2010", "skin", "theme", "ui"},
-	enabledByDefault = false
+	enabledByDefault = false,
+	type = PluginType.MISCELLANEOUS
 )
+@Singleton
 public class InterfaceStylesPlugin extends Plugin
 {
 	@Inject
@@ -71,7 +75,12 @@ public class InterfaceStylesPlugin extends Plugin
 	@Inject
 	private SpriteManager spriteManager;
 
-	private SpritePixels[] defaultCrossSprites;
+	private Sprite[] defaultCrossSprites;
+
+	private Skin skin;
+	private boolean hdHealthBars;
+	private boolean hdMenu;
+	private boolean rsCrossSprites;
 
 	@Provides
 	InterfaceStylesConfig provideConfig(ConfigManager configManager)
@@ -80,13 +89,14 @@ public class InterfaceStylesPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+		updateConfig();
 		clientThread.invoke(this::updateAllOverrides);
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		clientThread.invoke(() ->
 		{
@@ -98,24 +108,25 @@ public class InterfaceStylesPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onConfigChanged(ConfigChanged config)
+	private void onConfigChanged(ConfigChanged config)
 	{
 		if (config.getGroup().equals("interfaceStyles"))
 		{
+			updateConfig();
 			clientThread.invoke(this::updateAllOverrides);
 		}
 	}
 
 	@Subscribe
-	public void onClientTick(ClientTick event)
+	private void onWidgetPositioned(WidgetPositioned widgetPositioned)
 	{
 		adjustWidgetDimensions();
 	}
 
 	@Subscribe
-	public void onPostHealthBar(PostHealthBar postHealthBar)
+	private void onPostHealthBar(PostHealthBar postHealthBar)
 	{
-		if (!config.hdHealthBars())
+		if (!this.hdHealthBars)
 		{
 			return;
 		}
@@ -132,7 +143,7 @@ public class InterfaceStylesPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
+	private void onGameStateChanged(GameStateChanged gameStateChanged)
 	{
 		if (gameStateChanged.getGameState() != GameState.LOGIN_SCREEN)
 		{
@@ -159,9 +170,9 @@ public class InterfaceStylesPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onBeforeMenuRender(BeforeMenuRender event)
+	private void onBeforeMenuRender(BeforeMenuRender event)
 	{
-		if (config.hdMenu())
+		if (this.hdMenu)
 		{
 			client.draw2010Menu();
 			event.consume();
@@ -174,10 +185,10 @@ public class InterfaceStylesPlugin extends Plugin
 		{
 			for (Skin skin : spriteOverride.getSkin())
 			{
-				if (skin == config.skin())
+				if (skin == this.skin)
 				{
-					String file = config.skin().toString() + "/" + spriteOverride.getSpriteID() + ".png";
-					SpritePixels spritePixels = getFileSpritePixels(file);
+					String file = this.skin.toString() + "/" + spriteOverride.getSpriteID() + ".png";
+					Sprite spritePixels = getFileSpritePixels(file);
 
 					if (spriteOverride.getSpriteID() == SpriteID.COMPASS_TEXTURE)
 					{
@@ -206,10 +217,10 @@ public class InterfaceStylesPlugin extends Plugin
 	{
 		for (WidgetOverride widgetOverride : WidgetOverride.values())
 		{
-			if (widgetOverride.getSkin() == config.skin())
+			if (widgetOverride.getSkin() == this.skin)
 			{
-				String file = config.skin().toString() + "/widget/" + widgetOverride.getName() + ".png";
-				SpritePixels spritePixels = getFileSpritePixels(file);
+				String file = this.skin.toString() + "/widget/" + widgetOverride.getName() + ".png";
+				Sprite spritePixels = getFileSpritePixels(file);
 
 				if (spritePixels != null)
 				{
@@ -233,13 +244,13 @@ public class InterfaceStylesPlugin extends Plugin
 		}
 	}
 
-	private SpritePixels getFileSpritePixels(String file)
+	private Sprite getFileSpritePixels(String file)
 	{
 		try
 		{
 			log.debug("Loading: {}", file);
 			BufferedImage image = ImageUtil.getResourceStreamFromClass(this.getClass(), file);
-			return ImageUtil.getImageSpritePixels(image, client);
+			return ImageUtil.getImageSprite(image, client);
 		}
 		catch (RuntimeException ex)
 		{
@@ -253,7 +264,7 @@ public class InterfaceStylesPlugin extends Plugin
 	{
 		for (WidgetOffset widgetOffset : WidgetOffset.values())
 		{
-			if (widgetOffset.getSkin() != config.skin())
+			if (widgetOffset.getSkin() != this.skin)
 			{
 				continue;
 			}
@@ -287,7 +298,7 @@ public class InterfaceStylesPlugin extends Plugin
 
 	private void overrideHealthBars()
 	{
-		if (config.hdHealthBars())
+		if (this.hdHealthBars)
 		{
 			spriteManager.addSpriteOverrides(HealthbarOverride.values());
 			// Reset health bar caches to apply the override
@@ -307,7 +318,7 @@ public class InterfaceStylesPlugin extends Plugin
 
 	private void overrideCrossSprites()
 	{
-		if (config.rsCrossSprites())
+		if (this.rsCrossSprites)
 		{
 			// If we've already replaced them,
 			// we don't need to replace them again
@@ -316,19 +327,19 @@ public class InterfaceStylesPlugin extends Plugin
 				return;
 			}
 
-			SpritePixels[] crossSprites = client.getCrossSprites();
+			Sprite[] crossSprites = client.getCrossSprites();
 
 			if (crossSprites == null)
 			{
 				return;
 			}
 
-			defaultCrossSprites = new SpritePixels[crossSprites.length];
+			defaultCrossSprites = new Sprite[crossSprites.length];
 			System.arraycopy(crossSprites, 0, defaultCrossSprites, 0, defaultCrossSprites.length);
 
 			for (int i = 0; i < crossSprites.length; i++)
 			{
-				SpritePixels newSprite = getFileSpritePixels("rs3/cross_sprites/" + i + ".png");
+				Sprite newSprite = getFileSpritePixels("rs3/cross_sprites/" + i + ".png");
 
 				if (newSprite == null)
 				{
@@ -351,7 +362,7 @@ public class InterfaceStylesPlugin extends Plugin
 			return;
 		}
 
-		SpritePixels[] crossSprites = client.getCrossSprites();
+		Sprite[] crossSprites = client.getCrossSprites();
 
 		if (crossSprites != null && defaultCrossSprites.length == crossSprites.length)
 		{
@@ -383,8 +394,16 @@ public class InterfaceStylesPlugin extends Plugin
 
 		if (compassImage != null)
 		{
-			SpritePixels compass = ImageUtil.getImageSpritePixels(compassImage, client);
+			Sprite compass = ImageUtil.getImageSprite(compassImage, client);
 			client.setCompass(compass);
 		}
+	}
+
+	private void updateConfig()
+	{
+		this.skin = config.skin();
+		this.hdHealthBars = config.hdHealthBars();
+		this.hdMenu = config.hdMenu();
+		this.rsCrossSprites = config.rsCrossSprites();
 	}
 }

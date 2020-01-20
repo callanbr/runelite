@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import javax.annotation.Nullable;
 import lombok.Value;
 import net.runelite.api.Client;
 import static net.runelite.api.Constants.CHUNK_SIZE;
@@ -98,8 +99,8 @@ public class WorldPoint
 	 * Checks whether a tile is located in the current scene.
 	 *
 	 * @param client the client
-	 * @param x the tiles x coordinate
-	 * @param y the tiles y coordinate
+	 * @param x      the tiles x coordinate
+	 * @param y      the tiles y coordinate
 	 * @return true if the tile is in the scene, false otherwise
 	 */
 	public static boolean isInScene(Client client, int x, int y)
@@ -128,7 +129,7 @@ public class WorldPoint
 	 * Gets the coordinate of the tile that contains the passed local point.
 	 *
 	 * @param client the client
-	 * @param local the local coordinate
+	 * @param local  the local coordinate
 	 * @return the tile coordinate containing the local point
 	 */
 	public static WorldPoint fromLocal(Client client, LocalPoint local)
@@ -140,9 +141,9 @@ public class WorldPoint
 	 * Gets the coordinate of the tile that contains the passed local point.
 	 *
 	 * @param client the client
-	 * @param x the local x-axis coordinate
-	 * @param y the local x-axis coordinate
-	 * @param plane the plane
+	 * @param x      the local x-axis coordinate
+	 * @param y      the local x-axis coordinate
+	 * @param plane  the plane
 	 * @return the tile coordinate containing the local point
 	 */
 	public static WorldPoint fromLocal(Client client, int x, int y, int plane)
@@ -158,10 +159,11 @@ public class WorldPoint
 	 * Gets the coordinate of the tile that contains the passed local point,
 	 * accounting for instances.
 	 *
-	 * @param client the client
+	 * @param client     the client
 	 * @param localPoint the local coordinate
 	 * @return the tile coordinate containing the local point
 	 */
+	@Nullable
 	public static WorldPoint fromLocalInstance(Client client, LocalPoint localPoint)
 	{
 		if (client.isInInstancedRegion())
@@ -173,6 +175,11 @@ public class WorldPoint
 			// get chunk from scene
 			int chunkX = sceneX / CHUNK_SIZE;
 			int chunkY = sceneY / CHUNK_SIZE;
+
+			if (chunkX >= 13 || chunkY >= 13)
+			{
+				return null;
+			}
 
 			// get the template chunk for the chunk
 			int[][][] instanceTemplateChunks = client.getInstanceTemplateChunks();
@@ -199,6 +206,7 @@ public class WorldPoint
 	/**
 	 * Get occurrences of a tile on the scene, accounting for instances. There may be
 	 * more than one if the same template chunk occurs more than once on the scene.
+	 *
 	 * @param client
 	 * @param worldPoint
 	 * @return
@@ -239,7 +247,7 @@ public class WorldPoint
 	/**
 	 * Rotate the coordinates in the chunk according to chunk rotation
 	 *
-	 * @param point point
+	 * @param point    point
 	 * @param rotation rotation
 	 * @return world point
 	 */
@@ -307,6 +315,40 @@ public class WorldPoint
 	}
 
 	/**
+	 * Gets the straight-line distance between this point and another.
+	 * <p>
+	 * If the other point is not on the same plane, this method will return
+	 * {@link Float#MAX_VALUE}. If ignoring the plane is wanted, use the
+	 * {@link #distanceTo2DHypotenuse(WorldPoint)} method.
+	 *
+	 * @param other other point
+	 * @return the straight-line distance
+	 */
+	public float distanceToHypotenuse(WorldPoint other)
+	{
+		if (other.plane != plane)
+		{
+			return Float.MAX_VALUE;
+		}
+
+		return distanceTo2DHypotenuse(other);
+	}
+
+	/**
+	 * Find the straight-line distance from this point to another point.
+	 * <p>
+	 * This method disregards the plane value of the two tiles and returns
+	 * the simple distance between the X-Z coordinate pairs.
+	 *
+	 * @param other other point
+	 * @return the straight-line distance
+	 */
+	public float distanceTo2DHypotenuse(WorldPoint other)
+	{
+		return (float) Math.hypot(getX() - other.getX(), getY() - other.getY());
+	}
+
+	/**
 	 * Converts the passed scene coordinates to a world space
 	 */
 	public static WorldPoint fromScene(Client client, int x, int y, int plane)
@@ -326,6 +368,24 @@ public class WorldPoint
 	public int getRegionID()
 	{
 		return ((x >> 6) << 8) | (y >> 6);
+	}
+
+	/**
+	 * Checks if user in within certain zone specified by upper and lower bound
+	 *
+	 * @param lowerBound
+	 * @param upperBound
+	 * @param userLocation
+	 * @return
+	 */
+	public static boolean isInZone(WorldPoint lowerBound, WorldPoint upperBound, WorldPoint userLocation)
+	{
+		return userLocation.getX() >= lowerBound.getX()
+			&& userLocation.getX() <= upperBound.getX()
+			&& userLocation.getY() >= lowerBound.getY()
+			&& userLocation.getY() <= upperBound.getY()
+			&& userLocation.getPlane() >= lowerBound.getPlane()
+			&& userLocation.getPlane() <= upperBound.getPlane();
 	}
 
 	/**

@@ -25,7 +25,6 @@
 package net.runelite.client.ui.overlay;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.primitives.Ints;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Dimension;
@@ -35,31 +34,34 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Stroke;
+import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
-import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
+import net.runelite.api.MenuOpcode;
 import net.runelite.api.events.BeforeRender;
 import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.FocusChanged;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.config.RuneLiteConfig;
-import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseAdapter;
 import net.runelite.client.input.MouseManager;
 import net.runelite.client.ui.JagexColors;
 import net.runelite.client.util.ColorUtil;
+import net.runelite.client.util.MiscUtils;
 
 @Singleton
 @Slf4j
@@ -99,17 +101,21 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 		final OverlayManager overlayManager,
 		final RuneLiteConfig runeLiteConfig,
 		final MouseManager mouseManager,
-		final KeyManager keyManager)
+		final KeyManager keyManager,
+		final EventBus eventbus)
 	{
 		this.client = client;
 		this.overlayManager = overlayManager;
 		this.runeLiteConfig = runeLiteConfig;
 		keyManager.registerKeyListener(this);
 		mouseManager.registerMouseListener(this);
+
+		eventbus.subscribe(FocusChanged.class, this, this::onFocusChanged);
+		eventbus.subscribe(ClientTick.class, this, this::onClientTick);
+		eventbus.subscribe(BeforeRender.class, this, this::onBeforeRender);
 	}
 
-	@Subscribe
-	public void onFocusChanged(FocusChanged event)
+	private void onFocusChanged(FocusChanged event)
 	{
 		if (!event.isFocused())
 		{
@@ -119,8 +125,7 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 		}
 	}
 
-	@Subscribe
-	protected void onClientTick(ClientTick t)
+	private void onClientTick(ClientTick t)
 	{
 		if (menuEntries == null)
 		{
@@ -146,8 +151,7 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 		client.setMenuEntries(newEntries);
 	}
 
-	@Subscribe
-	public void onBeforeRender(BeforeRender event)
+	private void onBeforeRender(BeforeRender event)
 	{
 		menuEntries = null;
 	}
@@ -170,6 +174,14 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 			|| client.getViewportWidget() == null)
 		{
 			return;
+		}
+
+		// Set font rendering properties like the OS's font rendering
+		Toolkit tk = Toolkit.getDefaultToolkit();
+		Map desktopHints = (Map) (tk.getDesktopProperty("awt.font.desktophints"));
+		if (desktopHints != null)
+		{
+			graphics.addRenderingHints(desktopHints);
 		}
 
 		if (shouldInvalidateBounds())
@@ -273,8 +285,8 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 					}
 
 					final Dimension realDimensions = client.getRealDimensions();
-					location.x = Ints.constrainToRange(location.x, 0, Math.max(0, realDimensions.width - dimension.width));
-					location.y = Ints.constrainToRange(location.y, 0, Math.max(0, realDimensions.height - dimension.height));
+					location.x = MiscUtils.clamp(location.x, 0, Math.max(0, realDimensions.width - dimension.width));
+					location.y = MiscUtils.clamp(location.y, 0, Math.max(0, realDimensions.height - dimension.height));
 				}
 
 				if (overlay.getPreferredSize() != null)
@@ -304,7 +316,7 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 						graphics.setColor(previous);
 					}
 
-					if (menuEntries == null && !client.isMenuOpen() && !client.getSpellSelected() && bounds.contains(mouse))
+					if (menuEntries == null && !client.isMenuOpen() && !client.isSpellSelected() && bounds.contains(mouse))
 					{
 						menuEntries = createRightClickMenuEntries(overlay);
 					}
@@ -377,8 +389,8 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 		{
 			final Dimension realDimension = client.getRealDimensions();
 			mousePoint.translate(-overlayOffset.x, -overlayOffset.y);
-			mousePoint.x = Ints.constrainToRange(mousePoint.x, 0, Math.max(0, realDimension.width - movedOverlay.getBounds().width));
-			mousePoint.y = Ints.constrainToRange(mousePoint.y, 0, Math.max(0, realDimension.height - movedOverlay.getBounds().height));
+			mousePoint.x = MiscUtils.clamp(mousePoint.x, 0, Math.max(0, realDimension.width - movedOverlay.getBounds().width));
+			mousePoint.y = MiscUtils.clamp(mousePoint.y, 0, Math.max(0, realDimension.height - movedOverlay.getBounds().height));
 			movedOverlay.setPreferredPosition(null);
 			movedOverlay.setPreferredLocation(mousePoint);
 			mouseEvent.consume();
@@ -588,7 +600,7 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 			bottomLeftPoint.y) : bottomRightPoint;
 
 		final Point canvasTopRightPoint = isResizeable ? new Point(
-			(int)client.getRealDimensions().getWidth(),
+			(int) client.getRealDimensions().getWidth(),
 			0) : topRightPoint;
 
 		return new OverlayBounds(
@@ -614,7 +626,7 @@ public class OverlayRenderer extends MouseAdapter implements KeyListener
 			final MenuEntry entry = new MenuEntry();
 			entry.setOption(overlayMenuEntry.getOption());
 			entry.setTarget(ColorUtil.wrapWithColorTag(overlayMenuEntry.getTarget(), JagexColors.MENU_TARGET));
-			entry.setType(MenuAction.RUNELITE_OVERLAY.getId());
+			entry.setOpcode(MenuOpcode.RUNELITE_OVERLAY.getId());
 			entry.setIdentifier(overlayManager.getOverlays().indexOf(overlay)); // overlay id
 
 			entries[i] = entry;

@@ -36,6 +36,7 @@ import java.time.format.FormatStyle;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.events.GameStateChanged;
@@ -44,15 +45,19 @@ import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.task.Schedule;
 
 @PluginDescriptor(
 	name = "Report Button",
 	description = "Replace the text on the Report button with the current time",
-	tags = {"time", "utc"}
+	tags = {"time", "utc"},
+	type = PluginType.MISCELLANEOUS
 )
+@Singleton
 public class ReportButtonPlugin extends Plugin
 {
 	private static final ZoneId UTC = ZoneId.of("UTC");
@@ -73,6 +78,8 @@ public class ReportButtonPlugin extends Plugin
 	@Inject
 	private ReportButtonConfig config;
 
+	private TimeStyle timeStyle;
+
 	@Provides
 	ReportButtonConfig provideConfig(ConfigManager configManager)
 	{
@@ -82,6 +89,8 @@ public class ReportButtonPlugin extends Plugin
 	@Override
 	public void startUp()
 	{
+
+		this.timeStyle = config.time();
 		clientThread.invoke(this::updateReportButtonTime);
 	}
 
@@ -99,7 +108,7 @@ public class ReportButtonPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged event)
+	private void onGameStateChanged(GameStateChanged event)
 	{
 		GameState state = event.getGameState();
 
@@ -142,7 +151,7 @@ public class ReportButtonPlugin extends Plugin
 			return;
 		}
 
-		switch (config.time())
+		switch (this.timeStyle)
 		{
 			case UTC:
 				reportButton.setText(getUTCTime());
@@ -197,5 +206,14 @@ public class ReportButtonPlugin extends Plugin
 	private static String getDate()
 	{
 		return DATE_FORMAT.format(new Date());
+	}
+
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (event.getGroup().equals("reportButton"))
+		{
+			this.timeStyle = config.time();
+		}
 	}
 }

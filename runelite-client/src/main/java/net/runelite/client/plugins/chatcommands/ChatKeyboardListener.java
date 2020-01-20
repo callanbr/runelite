@@ -36,7 +36,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.input.KeyListener;
 
 @Singleton
-public class ChatKeyboardListener implements KeyListener
+class ChatKeyboardListener implements KeyListener
 {
 	@Inject
 	private ChatCommandsConfig chatCommandsConfig;

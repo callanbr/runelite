@@ -27,20 +27,11 @@
 package net.runelite.client.plugins.cluescrolls.clues.hotcold;
 
 import java.awt.Rectangle;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import net.runelite.api.coords.WorldPoint;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.ASGARNIA;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.DESERT;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.FELDIP_HILLS;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.FREMENNIK_PROVINCE;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.KANDARIN;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.KARAMJA;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.MISTHALIN;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.MORYTANIA;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.WESTERN_PROVINCE;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.WILDERNESS;
-import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.ZEAH;
+import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.*;
 
 // The locations contains all hot/cold points and their descriptions according to the wiki
 // these central points were obtained by checking wiki location pictures against a coordinate map
@@ -48,7 +39,7 @@ import static net.runelite.client.plugins.cluescrolls.clues.hotcold.HotColdArea.
 // calculations are done considering the 9x9 grid around the central point where the strange device shakes
 // because the calculations consider the 9x9 grid, slightly off-center points should still be found by the calculations
 @AllArgsConstructor
-@Getter
+@Getter(AccessLevel.PUBLIC)
 public enum HotColdLocation
 {
 	ASGARNIA_WARRIORS(new WorldPoint(2860, 3562, 0), ASGARNIA, "North of the Warriors' Guild in Burthorpe."),
@@ -108,7 +99,7 @@ public enum HotColdLocation
 	KANDARIN_KHAZARD_BATTLEFIELD(new WorldPoint(2518, 3249, 0), KANDARIN, "Khazard Battlefield, in the small ruins south of tracker gnome 2."),
 	KANDARIN_WEST_ARDY(new WorldPoint(2533, 3320, 0), KANDARIN, "West Ardougne, near the staircase outside the Civic Office."),
 	KANDARIN_SW_TREE_GNOME_STRONGHOLD(new WorldPoint(2411, 3431, 0), KANDARIN, "South-west Tree Gnome Stronghold"),
-	KANDARIN_OUTPOST(new WorldPoint(2457, 3362, 0), KANDARIN, "South of the Tree Gnome Stronghold, north-east of the Outpost."),
+	KANDARIN_OUTPOST(new WorldPoint(2458, 3364, 0), KANDARIN, "South of the Tree Gnome Stronghold, north-east of the Outpost."),
 	KANDARIN_BAXTORIAN_FALLS(new WorldPoint(2534, 3479, 0), KANDARIN, "South-east of Almera's house on Baxtorian Falls."),
 	KANDARIN_BA_AGILITY_COURSE(new WorldPoint(2536, 3546, 0), KANDARIN, "Inside the Barbarian Agility Course. Completion of Alfred Grimhand's Barcrawl is required."),
 	KARAMJA_MUSA_POINT(new WorldPoint(2914, 3168, 0), KARAMJA, "Musa Point, banana plantation."),

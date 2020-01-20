@@ -27,9 +27,22 @@ package net.runelite.client.plugins;
 import com.google.inject.Binder;
 import com.google.inject.Injector;
 import com.google.inject.Module;
+import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
+import java.lang.invoke.MethodHandles;
+import java.util.Collection;
+import java.util.Set;
+import lombok.AccessLevel;
+import lombok.Getter;
+import net.runelite.client.eventbus.AccessorGenerator;
+import net.runelite.client.eventbus.EventBus;
+import net.runelite.client.eventbus.Subscription;
 
 public abstract class Plugin implements Module
 {
+	private Set<Subscription> annotatedSubscriptions = null;
+
+	@Getter(AccessLevel.PROTECTED)
 	protected Injector injector;
 
 	@Override
@@ -45,8 +58,33 @@ public abstract class Plugin implements Module
 	{
 	}
 
-	public final Injector getInjector()
+	final void addAnnotatedSubscriptions(EventBus eventBus)
 	{
-		return injector;
+		if (annotatedSubscriptions == null)
+		{
+			Observable.fromCallable(this::findSubscriptions)
+				.subscribeOn(Schedulers.computation())
+				.observeOn(Schedulers.single())
+				.subscribe(subs -> addSubs(eventBus, (annotatedSubscriptions = subs)));
+		}
+		else
+		{
+			addSubs(eventBus, annotatedSubscriptions);
+		}
+	}
+
+	final void removeAnnotatedSubscriptions(EventBus eventBus)
+	{
+		eventBus.unregister(this);
+	}
+
+	private Set<Subscription> findSubscriptions()
+	{
+		return AccessorGenerator.scanSubscribes(MethodHandles.lookup(), this);
+	}
+
+	private void addSubs(EventBus eventBus, Collection<Subscription> subs)
+	{
+		subs.forEach(s -> s.subscribe(eventBus, this));
 	}
 }

@@ -80,7 +80,7 @@ public interface XpGlobesConfig extends Config
 	@ConfigItem(
 		keyName = "hideMaxed",
 		name = "Hide maxed skills",
-		description = "Stop globes from showing up for level 99 skills",
+		description = "Stop globes from showing up for level 99 skills ",
 		position = 4
 	)
 	default boolean hideMaxed()
@@ -89,10 +89,21 @@ public interface XpGlobesConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "Time to level",
+		name = "Display TTL",
+		description = "Displays time left to level",
+		position = 5
+	)
+	default boolean enableTimeToLevel()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "enableCustomArcColor",
 		name = "Enable custom arc color",
 		description = "Enables the custom coloring of the globe's arc instead of using the skill's default color.",
-		position = 5
+		position = 6
 	)
 	default boolean enableCustomArcColor()
 	{
@@ -104,7 +115,7 @@ public interface XpGlobesConfig extends Config
 		keyName = "Progress arc color",
 		name = "Progress arc color",
 		description = "Change the color of the progress arc in the xp orb",
-		position = 6
+		position = 7
 	)
 	default Color progressArcColor()
 	{
@@ -116,7 +127,7 @@ public interface XpGlobesConfig extends Config
 		keyName = "Progress orb outline color",
 		name = "Progress orb outline color",
 		description = "Change the color of the progress orb outline",
-		position = 7
+		position = 8
 	)
 	default Color progressOrbOutLineColor()
 	{
@@ -128,7 +139,7 @@ public interface XpGlobesConfig extends Config
 		keyName = "Progress orb background color",
 		name = "Progress orb background color",
 		description = "Change the color of the progress orb background",
-		position = 8
+		position = 9
 	)
 	default Color progressOrbBackgroundColor()
 	{
@@ -139,7 +150,7 @@ public interface XpGlobesConfig extends Config
 		keyName = "Progress arc width",
 		name = "Progress arc width",
 		description = "Change the stroke width of the progress arc",
-		position = 9
+		position = 10
 	)
 	default int progressArcStrokeWidth()
 	{
@@ -150,7 +161,7 @@ public interface XpGlobesConfig extends Config
 		keyName = "Orb size",
 		name = "Size of orbs",
 		description = "Change the size of the xp orbs",
-		position = 10
+		position = 11
 	)
 	default int xpOrbSize()
 	{
@@ -161,7 +172,7 @@ public interface XpGlobesConfig extends Config
 		keyName = "Orb duration",
 		name = "Duration of orbs",
 		description = "Change the duration the xp orbs are visible",
-		position = 11
+		position = 12
 	)
 	default int xpOrbDuration()
 	{

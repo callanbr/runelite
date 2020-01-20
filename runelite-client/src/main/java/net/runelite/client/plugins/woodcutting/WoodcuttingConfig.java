@@ -77,6 +77,17 @@ public interface WoodcuttingConfig extends Config
 
 	@ConfigItem(
 		position = 5,
+		keyName = "showGPEarned",
+		name = "Show GP earned",
+		description = "Configures whether to show amount of gp earned by chopping trees"
+	)
+	default boolean showGPEarned()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		position = 6,
 		keyName = "showRespawnTimers",
 		name = "Show respawn timers",
 		description = "Configures whether to display the respawn timer overlay"

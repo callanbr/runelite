@@ -28,11 +28,14 @@ package net.runelite.client.plugins.woodcutting;
 import com.google.inject.Guice;
 import com.google.inject.testing.fieldbinder.Bind;
 import com.google.inject.testing.fieldbinder.BoundFieldModule;
+import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.client.Notifier;
+import net.runelite.client.config.OpenOSRSConfig;
+import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.overlay.OverlayManager;
 import static org.junit.Assert.assertNotNull;
 import org.junit.Before;
@@ -58,6 +61,14 @@ public class WoodcuttingPluginTest
 
 	@Mock
 	@Bind
+	OpenOSRSConfig openOSRSConfig;
+
+	@Mock
+	@Bind
+	ScheduledExecutorService scheduledExecutorService;
+
+	@Mock
+	@Bind
 	Notifier notifier;
 
 	@Mock
@@ -75,6 +86,10 @@ public class WoodcuttingPluginTest
 	@Mock
 	@Bind
 	OverlayManager overlayManager;
+
+	@Mock
+	@Bind
+	private ItemManager itemManager;
 
 	@Before
 	public void before()

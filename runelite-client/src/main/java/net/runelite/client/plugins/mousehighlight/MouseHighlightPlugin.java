@@ -26,23 +26,56 @@ package net.runelite.client.plugins.mousehighlight;
 
 import com.google.inject.Provides;
 import javax.inject.Inject;
+import javax.inject.Singleton;
+import lombok.AccessLevel;
+import lombok.Getter;
+import net.runelite.api.Client;
+import net.runelite.api.GameState;
+import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
+import net.runelite.api.events.WidgetLoaded;
+import net.runelite.api.widgets.Widget;
+import net.runelite.api.widgets.WidgetID;
+import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.ui.overlay.OverlayManager;
 
 @PluginDescriptor(
 	name = "Mouse Tooltips",
 	description = "Render default actions as a tooltip",
-	tags = {"actions", "overlay"}
+	tags = {"actions", "overlay", "tooltip", "hide"},
+	type = PluginType.UTILITY
 )
+@Singleton
 public class MouseHighlightPlugin extends Plugin
 {
+	@Inject
+	MouseHighlightConfig config;
+
+	@Inject
+	private Client client;
+
 	@Inject
 	private OverlayManager overlayManager;
 
 	@Inject
 	private MouseHighlightOverlay overlay;
+
+	@Getter(AccessLevel.PACKAGE)
+	private boolean mainTooltip;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean uiTooltip;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean chatboxTooltip;
+	private boolean shouldHideSpells;
+	private boolean shouldHideCombat;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean isRightClickTooltipEnabled;
 
 	@Provides
 	MouseHighlightConfig provideConfig(ConfigManager configManager)
@@ -51,14 +84,111 @@ public class MouseHighlightPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+		updateConfig();
+
+		adjustTips();
 		overlayManager.add(overlay);
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
+		resetTips();
 		overlayManager.remove(overlay);
+	}
+
+	@Subscribe
+	private void onGameStateChanged(GameStateChanged event)
+	{
+		if (event.getGameState() == GameState.LOGGED_IN)
+		{
+			adjustTips();
+		}
+	}
+
+	@Subscribe
+	private void onWidgetLoaded(WidgetLoaded event)
+	{
+		if (event.getGroupId() == WidgetID.SPELLBOOK_GROUP_ID || event.getGroupId() == WidgetID.COMBAT_GROUP_ID)
+		{
+			adjustTips();
+		}
+	}
+
+	@Subscribe
+	private void onGameTick(GameTick event)
+	{
+		adjustTips();
+	}
+
+	private void adjustTips()
+	{
+		if (client.getGameState() != GameState.LOGGED_IN)
+		{
+			return;
+		}
+
+		try
+		{
+			setTipHidden(WidgetInfo.SPELL_TOOLTIP, this.shouldHideSpells);
+			setTipHidden(WidgetInfo.COMBAT_TOOLTIP, this.shouldHideCombat);
+		}
+		catch (Exception e)
+		{
+			//swallow
+		}
+	}
+
+	private void resetTips()
+	{
+		if (client.getGameState() != GameState.LOGGED_IN)
+		{
+			return;
+		}
+
+		try
+		{
+			setTipHidden(WidgetInfo.SPELL_TOOLTIP, false);
+			setTipHidden(WidgetInfo.COMBAT_TOOLTIP, false);
+		}
+		catch (Exception e)
+		{
+			//swallow
+		}
+	}
+
+	private void setTipHidden(WidgetInfo widgetInfo, boolean hidden)
+	{
+		Widget widget = client.getWidget(widgetInfo);
+
+		if (widget == null)
+		{
+			return;
+		}
+
+		widget.setHidden(hidden);
+	}
+
+	@Subscribe
+	private void onConfigChanged(ConfigChanged event)
+	{
+		if (!event.getGroup().equals("motherlode"))
+		{
+			return;
+		}
+
+		updateConfig();
+	}
+
+	private void updateConfig()
+	{
+		this.mainTooltip = config.mainTooltip();
+		this.uiTooltip = config.uiTooltip();
+		this.chatboxTooltip = config.chatboxTooltip();
+		this.shouldHideSpells = config.shouldHideSpells();
+		this.shouldHideCombat = config.shouldHideCombat();
+		this.isRightClickTooltipEnabled = config.isRightClickTooltipEnabled();
 	}
 }

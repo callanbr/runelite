@@ -24,14 +24,14 @@
  */
 package net.runelite.api.events;
 
-import lombok.Data;
 import net.runelite.api.widgets.WidgetInfo;
+import lombok.Data;
 
 /**
  * A MenuManager widget menu was clicked. This event is NOT fired for non-MenuManager menu options
  */
 @Data
-public class WidgetMenuOptionClicked
+public class WidgetMenuOptionClicked implements Event
 {
 	/**
 	 * The clicked menu option.

@@ -24,23 +24,16 @@
  */
 package net.runelite.client.plugins.grounditems.config;
 
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
-@Getter
+@Getter(AccessLevel.PUBLIC)
 @RequiredArgsConstructor
 public enum PriceDisplayMode
 {
-	HA("High Alchemy"),
-	GE("Grand Exchange"),
-	BOTH("Both"),
-	OFF("Off");
-
-	private final String name;
-
-	@Override
-	public String toString()
-	{
-		return name;
-	}
+	HA,
+	GE,
+	BOTH,
+	OFF
 }

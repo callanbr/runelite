@@ -26,11 +26,8 @@ package net.runelite.client.plugins.config;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridLayout;
-import java.awt.MouseInfo;
-import java.awt.Point;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -40,21 +37,17 @@ import java.util.List;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
-import javax.swing.JMenuItem;
 import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
 import javax.swing.JToggleButton;
-import javax.swing.SwingUtilities;
-import javax.swing.border.EmptyBorder;
 import lombok.Getter;
-import net.runelite.client.externalplugins.ExternalPluginManifest;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.SwingUtil;
 import org.apache.commons.text.similarity.JaroWinklerDistance;
 
-class PluginListItem extends JPanel
+public class PluginListItem extends JPanel
 {
 	private static final JaroWinklerDistance DISTANCE = new JaroWinklerDistance();
 
@@ -70,15 +63,18 @@ class PluginListItem extends JPanel
 
 	private final List<String> keywords = new ArrayList<>();
 
+	public JLabel nameLabel;
 	private final JToggleButton pinButton;
 	private final JToggleButton onOffToggle;
+
+	private Color color = null;
 
 	static
 	{
 		BufferedImage configIcon = ImageUtil.getResourceStreamFromClass(ConfigPanel.class, "config_edit_icon.png");
 		BufferedImage onStar = ImageUtil.getResourceStreamFromClass(ConfigPanel.class, "star_on.png");
 		CONFIG_ICON = new ImageIcon(configIcon);
-		ON_STAR = new ImageIcon(onStar);
+		ON_STAR = new ImageIcon(ImageUtil.recolorImage(onStar, ColorScheme.BRAND_BLUE));
 		CONFIG_ICON_HOVER = new ImageIcon(ImageUtil.luminanceOffset(configIcon, -100));
 
 		BufferedImage offStar = ImageUtil.luminanceScale(
@@ -96,18 +92,11 @@ class PluginListItem extends JPanel
 		Collections.addAll(keywords, pluginConfig.getName().toLowerCase().split(" "));
 		Collections.addAll(keywords, pluginConfig.getDescription().toLowerCase().split(" "));
 		Collections.addAll(keywords, pluginConfig.getTags());
-		ExternalPluginManifest mf = pluginConfig.getExternalPluginManifest();
-		if (mf != null)
-		{
-			keywords.add(mf.getInternalName());
-		}
-
-		final List<JMenuItem> popupMenuItems = new ArrayList<>();
 
 		setLayout(new BorderLayout(3, 0));
 		setPreferredSize(new Dimension(PluginPanel.PANEL_WIDTH, 20));
 
-		JLabel nameLabel = new JLabel(pluginConfig.getName());
+		nameLabel = new JLabel(pluginConfig.getName());
 		nameLabel.setForeground(Color.WHITE);
 
 		if (!pluginConfig.getDescription().isEmpty())
@@ -132,7 +121,6 @@ class PluginListItem extends JPanel
 		buttonPanel.setLayout(new GridLayout(1, 2));
 		add(buttonPanel, BorderLayout.LINE_END);
 
-		JMenuItem configMenuItem = null;
 		if (pluginConfig.hasConfigurables())
 		{
 			JButton configButton = new JButton(CONFIG_ICON);
@@ -150,19 +138,9 @@ class PluginListItem extends JPanel
 
 			configButton.setVisible(true);
 			configButton.setToolTipText("Edit plugin configuration");
-
-			configMenuItem = new JMenuItem("Configure");
-			configMenuItem.addActionListener(e -> openGroupConfigPanel());
 		}
 
-		JMenuItem uninstallItem = null;
-		if (mf != null)
-		{
-			uninstallItem = new JMenuItem("Uninstall");
-			uninstallItem.addActionListener(ev -> pluginListPanel.getExternalPluginManager().remove(mf.getInternalName()));
-		}
-
-		addLabelPopupMenu(nameLabel, configMenuItem, pluginConfig.createSupportMenuItem(), uninstallItem);
+		addLabelMouseOver(nameLabel);
 		add(nameLabel, BorderLayout.CENTER);
 
 		onOffToggle = new PluginToggleButton();
@@ -197,6 +175,27 @@ class PluginListItem extends JPanel
 		pinButton.setSelected(pinned);
 	}
 
+	public PluginType getPluginType()
+	{
+		return pluginConfig.getPluginType();
+	}
+
+	public Color getColor()
+	{
+		return this.color == null ? Color.WHITE : this.color;
+	}
+
+	public void setColor(Color color)
+	{
+		if (color == null)
+		{
+			return;
+		}
+
+		this.color = color;
+		this.nameLabel.setForeground(color);
+	}
+
 	void setPluginEnabled(boolean enabled)
 	{
 		onOffToggle.setSelected(enabled);
@@ -226,49 +225,23 @@ class PluginListItem extends JPanel
 	}
 
 	/**
-	 * Adds a mouseover effect to change the text of the passed label to {@link ColorScheme#BRAND_ORANGE} color, and
-	 * adds the passed menu items to a popup menu shown when the label is clicked.
+	 * Adds a mouseover effect to change the text of the passed label to {@link ColorScheme#BRAND_BLUE} color
 	 *
-	 * @param label     The label to attach the mouseover and click effects to
-	 * @param menuItems The menu items to be shown when the label is clicked
+	 * @param label The label to attach the mouseover and click effects to
 	 */
-	static void addLabelPopupMenu(JLabel label, JMenuItem... menuItems)
+	static void addLabelMouseOver(final JLabel label)
 	{
-		final JPopupMenu menu = new JPopupMenu();
 		final Color labelForeground = label.getForeground();
-		menu.setBorder(new EmptyBorder(5, 5, 5, 5));
-
-		for (final JMenuItem menuItem : menuItems)
-		{
-			if (menuItem == null)
-			{
-				continue;
-			}
-
-			// Some machines register mouseEntered through a popup menu, and do not register mouseExited when a popup
-			// menu item is clicked, so reset the label's color when we click one of these options.
-			menuItem.addActionListener(e -> label.setForeground(labelForeground));
-			menu.add(menuItem);
-		}
 
 		label.addMouseListener(new MouseAdapter()
 		{
 			private Color lastForeground;
 
 			@Override
-			public void mouseClicked(MouseEvent mouseEvent)
-			{
-				Component source = (Component) mouseEvent.getSource();
-				Point location = MouseInfo.getPointerInfo().getLocation();
-				SwingUtilities.convertPointFromScreen(location, source);
-				menu.show(source, location.x, location.y);
-			}
-
-			@Override
 			public void mouseEntered(MouseEvent mouseEvent)
 			{
 				lastForeground = label.getForeground();
-				label.setForeground(ColorScheme.BRAND_ORANGE);
+				label.setForeground(ColorScheme.BRAND_BLUE);
 			}
 
 			@Override

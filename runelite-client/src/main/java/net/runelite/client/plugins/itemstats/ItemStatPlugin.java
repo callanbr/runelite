@@ -30,10 +30,13 @@ import com.google.common.collect.ImmutableSet;
 import com.google.inject.Binder;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
+import java.awt.Color;
 import java.awt.FontMetrics;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import lombok.AccessLevel;
+import lombok.Getter;
 import net.runelite.api.Client;
 import net.runelite.api.Constants;
 import net.runelite.api.FontID;
@@ -44,7 +47,6 @@ import net.runelite.api.ItemID;
 import net.runelite.api.SpriteID;
 import net.runelite.api.VarPlayer;
 import net.runelite.api.Varbits;
-import net.runelite.client.events.ConfigChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.events.VarbitChanged;
@@ -56,9 +58,11 @@ import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.PluginType;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.JagexColors;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -69,7 +73,8 @@ import net.runelite.http.api.item.ItemStats;
 @PluginDescriptor(
 	name = "Item Stats",
 	description = "Show information about food and potion effects",
-	tags = {"food", "inventory", "overlay", "potion"}
+	tags = {"food", "inventory", "overlay", "potion"},
+	type = PluginType.UTILITY
 )
 public class ItemStatPlugin extends Plugin
 {
@@ -97,6 +102,30 @@ public class ItemStatPlugin extends Plugin
 
 	private Widget itemInformationTitle;
 
+	@Getter(AccessLevel.PACKAGE)
+	private boolean consumableStats;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean equipmentStats;
+	private boolean geStats;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean relative;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean absolute;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean theoretical;
+	@Getter(AccessLevel.PACKAGE)
+	private boolean showWeight;
+	@Getter(AccessLevel.PACKAGE)
+	private Color colorBetterUncapped;
+	@Getter(AccessLevel.PACKAGE)
+	private Color colorBetterSomeCapped;
+	@Getter(AccessLevel.PACKAGE)
+	private Color colorBetterCapped;
+	@Getter(AccessLevel.PACKAGE)
+	private Color colorNoChange;
+	@Getter(AccessLevel.PACKAGE)
+	private Color colorWorse;
+
 	@Provides
 	ItemStatConfig getConfig(ConfigManager configManager)
 	{
@@ -110,31 +139,33 @@ public class ItemStatPlugin extends Plugin
 	}
 
 	@Override
-	protected void startUp() throws Exception
+	protected void startUp()
 	{
+		updateConfig();
 		overlayManager.add(overlay);
 	}
 
 	@Override
-	protected void shutDown() throws Exception
+	protected void shutDown()
 	{
 		overlayManager.remove(overlay);
 		clientThread.invokeLater(this::resetGEInventory);
 	}
 
 	@Subscribe
-	public void onConfigChanged(ConfigChanged event)
+	private void onConfigChanged(ConfigChanged event)
 	{
 		if (event.getKey().equals("geStats"))
 		{
+			updateConfig();
 			clientThread.invokeLater(this::resetGEInventory);
 		}
 	}
 
 	@Subscribe
-	public void onGameTick(GameTick event)
+	private void onGameTick(GameTick event)
 	{
-		if (itemInformationTitle != null && config.geStats()
+		if (itemInformationTitle != null && this.geStats
 			&& (client.getWidget(WidgetInfo.GRAND_EXCHANGE_WINDOW_CONTAINER) == null
 			|| client.getWidget(WidgetInfo.GRAND_EXCHANGE_WINDOW_CONTAINER).isHidden()))
 		{
@@ -142,19 +173,20 @@ public class ItemStatPlugin extends Plugin
 		}
 	}
 
+
 	@Subscribe
-	public void onVarbitChanged(VarbitChanged event)
+	private void onVarbitChanged(VarbitChanged event)
 	{
-		if (client.getVar(VarPlayer.CURRENT_GE_ITEM) == -1 && config.geStats())
+		if (client.getVar(VarPlayer.CURRENT_GE_ITEM) == -1 && this.geStats)
 		{
 			resetGEInventory();
 		}
 	}
 
 	@Subscribe
-	public void onScriptCallbackEvent(ScriptCallbackEvent event)
+	private void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
-		if (event.getEventName().equals("geBuilt") && config.geStats())
+		if (event.getEventName().equals("geBuilt") && this.geStats)
 		{
 			int currentGeItem = client.getVar(VarPlayer.CURRENT_GE_ITEM);
 			if (currentGeItem != -1 && client.getVar(Varbits.GE_OFFER_CREATION_TYPE) == 0)
@@ -215,13 +247,9 @@ public class ItemStatPlugin extends Plugin
 		closeButton.setSpriteId(SpriteID.BOTTOM_LINE_MODE_WINDOW_CLOSE_BUTTON_SMALL);
 		closeButton.setAction(0, "Close");
 		closeButton.setOnMouseOverListener((JavaScriptCallback) (ev) ->
-		{
-			closeButton.setSpriteId(SpriteID.BOTTOM_LINE_MODE_WINDOW_CLOSE_BUTTON_SMALL_HOVERED);
-		});
+			closeButton.setSpriteId(SpriteID.BOTTOM_LINE_MODE_WINDOW_CLOSE_BUTTON_SMALL_HOVERED));
 		closeButton.setOnMouseLeaveListener((JavaScriptCallback) (ev) ->
-		{
-			closeButton.setSpriteId(SpriteID.BOTTOM_LINE_MODE_WINDOW_CLOSE_BUTTON_SMALL);
-		});
+			closeButton.setSpriteId(SpriteID.BOTTOM_LINE_MODE_WINDOW_CLOSE_BUTTON_SMALL));
 		closeButton.setOnOpListener((JavaScriptCallback) (ev) -> resetGEInventory());
 		closeButton.setHasListener(true);
 		closeButton.revalidate();
@@ -244,7 +272,7 @@ public class ItemStatPlugin extends Plugin
 		icon.setBorderType(1);
 		icon.revalidate();
 
-		Widget itemName = createText(invContainer, itemManager.getItemComposition(id).getName(), FontID.PLAIN_12, ORANGE_TEXT,
+		Widget itemName = createText(invContainer, itemManager.getItemDefinition(id).getName(), FontID.PLAIN_12, ORANGE_TEXT,
 			50, yPos, invContainer.getWidth() - 40, 30);
 		itemName.setYTextAlignment(WidgetTextAlignment.CENTER);
 
@@ -350,7 +378,7 @@ public class ItemStatPlugin extends Plugin
 	}
 
 	private static Widget createText(Widget parent, String text, int fontId, int textColor,
-								int x, int y, int width, int height)
+									int x, int y, int width, int height)
 	{
 		final Widget widget = parent.createChild(-1, WidgetType.TEXT);
 		widget.setText(text);
@@ -434,5 +462,21 @@ public class ItemStatPlugin extends Plugin
 		{
 			return client.getWidget(WidgetInfo.FIXED_VIEWPORT_INVENTORY_CONTAINER);
 		}
+	}
+
+	private void updateConfig()
+	{
+		this.consumableStats = config.consumableStats();
+		this.equipmentStats = config.equipmentStats();
+		this.geStats = config.geStats();
+		this.relative = config.relative();
+		this.absolute = config.absolute();
+		this.theoretical = config.theoretical();
+		this.showWeight = config.showWeight();
+		this.colorBetterUncapped = config.colorBetterUncapped();
+		this.colorBetterSomeCapped = config.colorBetterSomeCapped();
+		this.colorBetterCapped = config.colorBetterCapped();
+		this.colorNoChange = config.colorNoChange();
+		this.colorWorse = config.colorWorse();
 	}
 }

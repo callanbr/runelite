@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -54,8 +55,8 @@ import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.PanelComponent;
 import net.runelite.client.ui.overlay.components.TitleComponent;
 
-@EqualsAndHashCode(callSuper = false, exclude = { "hotColdSolver", "location" })
-@Getter
+@EqualsAndHashCode(callSuper = false, exclude = {"hotColdSolver", "location"})
+@Getter(AccessLevel.PUBLIC)
 @Slf4j
 public class HotColdClue extends ClueScroll implements LocationClueScroll, LocationsClueScroll, TextClueScroll, NpcClueScroll
 {
@@ -122,7 +123,7 @@ public class HotColdClue extends ClueScroll implements LocationClueScroll, Locat
 
 		if (hotColdSolver.getLastWorldPoint() == null)
 		{
-			return new WorldPoint[] {npcLocation};
+			return new WorldPoint[]{npcLocation};
 		}
 		else
 		{
@@ -191,11 +192,11 @@ public class HotColdClue extends ClueScroll implements LocationClueScroll, Locat
 
 			if (digLocations.size() > 10)
 			{
-				for (HotColdArea area : locationCounts.keySet())
+				for (Map.Entry<HotColdArea, Integer> locationCount : locationCounts.entrySet())
 				{
 					panelComponent.getChildren().add(LineComponent.builder()
-						.left(area.getName())
-						.right(Integer.toString(locationCounts.get(area)))
+						.left(locationCount.getKey().getName())
+						.right(Integer.toString(locationCount.getValue()))
 						.build());
 				}
 			}
@@ -366,6 +367,6 @@ public class HotColdClue extends ClueScroll implements LocationClueScroll, Locat
 
 	public String[] getNpcs()
 	{
-		return new String[] {npc};
+		return new String[]{npc};
 	}
 }

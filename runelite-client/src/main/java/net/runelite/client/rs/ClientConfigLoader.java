@@ -28,8 +28,9 @@ package net.runelite.client.rs;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import net.runelite.http.api.RuneLiteAPI;
+import java.util.concurrent.TimeUnit;
 import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
@@ -47,7 +48,11 @@ class ClientConfigLoader
 
 		final RSConfig config = new RSConfig();
 
-		try (final Response response = RuneLiteAPI.CLIENT.newCall(request).execute())
+		OkHttpClient okHttpClient = new OkHttpClient.Builder()
+			.connectTimeout(2000, TimeUnit.MILLISECONDS)
+			.build();
+
+		try (final Response response = okHttpClient.newCall(request).execute())
 		{
 			if (!response.isSuccessful())
 			{

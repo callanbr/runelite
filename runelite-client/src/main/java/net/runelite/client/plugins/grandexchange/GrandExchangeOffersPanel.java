@@ -30,15 +30,18 @@ import java.awt.CardLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.image.BufferedImage;
+import java.util.Arrays;
+import javax.inject.Singleton;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
-import net.runelite.api.ItemComposition;
+import net.runelite.api.ItemDefinition;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.components.PluginErrorPanel;
 
-public class GrandExchangeOffersPanel extends JPanel
+@Singleton
+class GrandExchangeOffersPanel extends JPanel
 {
 	private static final String ERROR_PANEL = "ERROR_PANEL";
 	private static final String OFFERS_PANEL = "OFFERS_PANEL";
@@ -96,14 +99,11 @@ public class GrandExchangeOffersPanel extends JPanel
 	void resetOffers()
 	{
 		offerPanel.removeAll();
-		for (int i = 0; i < offerSlotPanels.length; i++)
-		{
-			offerSlotPanels[i] = null;
-		}
+		Arrays.fill(offerSlotPanels, null);
 		updateEmptyOffersPanel();
 	}
 
-	void updateOffer(ItemComposition item, BufferedImage itemImage, GrandExchangeOffer newOffer, int slot)
+	void updateOffer(ItemDefinition item, BufferedImage itemImage, GrandExchangeOffer newOffer, int slot)
 	{
 		/* If slot was previously filled, and is now empty, remove it from the list */
 		if (newOffer == null || newOffer.getState() == GrandExchangeOfferState.EMPTY)

@@ -29,21 +29,21 @@ import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.Range;
 
-@ConfigGroup("zoom") // using the old plugin's group name
+@ConfigGroup("zoom")
 public interface CameraConfig extends Config
 {
 	int OUTER_LIMIT_MIN = -400;
 	int OUTER_LIMIT_MAX = 400;
 	/**
 	 * The largest (most zoomed in) value that can be used without the client crashing.
-	 *
+	 * <p>
 	 * Larger values trigger an overflow in the engine's fov to scale code.
 	 */
 	int INNER_ZOOM_LIMIT = 1004;
 
 	@ConfigItem(
 		keyName = "inner",
-		name = "Expand inner zoom limit",
+		name = "Inner limit",
 		description = "Configures whether or not the inner zoom limit is reduced",
 		position = 1
 	)
@@ -58,7 +58,7 @@ public interface CameraConfig extends Config
 	)
 	@ConfigItem(
 		keyName = "outerLimit",
-		name = "Expand outer zoom limit",
+		name = "Outer limit",
 		description = "Configures how much the outer zoom limit is adjusted",
 		position = 2
 	)

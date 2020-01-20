@@ -26,8 +26,6 @@
 package net.runelite.client.chat;
 
 import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +36,6 @@ import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.eventbus.EventBus;
-import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ChatboxInput;
 import net.runelite.client.events.PrivateMessageInput;
 
@@ -55,27 +52,20 @@ public class CommandManager
 	private final ClientThread clientThread;
 	private boolean sending;
 
-	private final List<ChatboxInputListener> chatboxInputListenerList = new CopyOnWriteArrayList<>();
-
 	@Inject
-	private CommandManager(Client client, EventBus eventBus, ClientThread clientThread)
+	private CommandManager(
+		final Client client,
+		final EventBus eventBus,
+		final ClientThread clientThread
+	)
 	{
 		this.client = client;
 		this.eventBus = eventBus;
 		this.clientThread = clientThread;
+
+		eventBus.subscribe(ScriptCallbackEvent.class, this, this::onScriptCallbackEvent);
 	}
 
-	public void register(ChatboxInputListener chatboxInputListener)
-	{
-		chatboxInputListenerList.add(chatboxInputListener);
-	}
-
-	public void unregister(ChatboxInputListener chatboxInputListener)
-	{
-		chatboxInputListenerList.remove(chatboxInputListener);
-	}
-
-	@Subscribe
 	private void onScriptCallbackEvent(ScriptCallbackEvent event)
 	{
 		if (sending)
@@ -115,7 +105,7 @@ public class CommandManager
 		String[] args = Arrays.copyOfRange(split, 1, split.length);
 
 		CommandExecuted commandExecuted = new CommandExecuted(command, args);
-		eventBus.post(commandExecuted);
+		eventBus.post(CommandExecuted.class, commandExecuted);
 	}
 
 	private void handleInput(ScriptCallbackEvent event)
@@ -144,13 +134,10 @@ public class CommandManager
 				clientThread.invoke(() -> sendChatboxInput(chatType, typedText));
 			}
 		};
-		boolean stop = false;
-		for (ChatboxInputListener chatboxInputListener : chatboxInputListenerList)
-		{
-			stop |= chatboxInputListener.onChatboxInput(chatboxInput);
-		}
 
-		if (stop)
+		eventBus.post(ChatboxInput.class, chatboxInput);
+
+		if (chatboxInput.isStop())
 		{
 			// input was blocked.
 			stringStack[stringStackCount - 1] = ""; // prevent script from sending
@@ -184,13 +171,9 @@ public class CommandManager
 			}
 		};
 
-		boolean stop = false;
-		for (ChatboxInputListener chatboxInputListener : chatboxInputListenerList)
-		{
-			stop |= chatboxInputListener.onPrivateMessageInput(privateMessageInput);
-		}
+		eventBus.post(PrivateMessageInput.class, privateMessageInput);
 
-		if (stop)
+		if (privateMessageInput.isStop())
 		{
 			intStack[intStackCount - 1] = 1;
 			client.setStringStackSize(stringStackCount - 2); // remove both target and message

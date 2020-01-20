@@ -24,7 +24,6 @@
  */
 package net.runelite.client;
 
-import com.google.common.base.Strings;
 import com.google.common.escape.Escaper;
 import com.google.common.escape.Escapers;
 import com.google.inject.Inject;
@@ -128,9 +127,7 @@ public class Notifier
 		this.notifyIconPath = RuneLite.RUNELITE_DIR.toPath().resolve("icon.png");
 
 		// First check if we are running in launcher
-		this.terminalNotifierAvailable =
-			!Strings.isNullOrEmpty(RuneLiteProperties.getLauncherVersion())
-			&& isTerminalNotifierAvailable();
+		this.terminalNotifierAvailable = true;
 
 		storeIcon();
 	}
@@ -350,7 +347,7 @@ public class Notifier
 
 	private static Process sendCommand(final List<String> commands) throws IOException
 	{
-		return new ProcessBuilder(commands.toArray(new String[commands.size()]))
+		return new ProcessBuilder(commands.toArray(new String[0]))
 			.redirectErrorStream(true)
 			.start();
 	}
@@ -359,7 +356,7 @@ public class Notifier
 	{
 		if (OSType.getOSType() == OSType.Linux && !Files.exists(notifyIconPath))
 		{
-			try (InputStream stream = Notifier.class.getResourceAsStream("/runelite.png"))
+			try (InputStream stream = Notifier.class.getResourceAsStream("/openosrs.png"))
 			{
 				Files.copy(stream, notifyIconPath);
 			}

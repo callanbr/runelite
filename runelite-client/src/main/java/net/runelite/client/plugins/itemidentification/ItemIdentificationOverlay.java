@@ -25,30 +25,33 @@
 package net.runelite.client.plugins.itemidentification;
 
 import com.google.inject.Inject;
+import com.google.inject.Singleton;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
 import static net.runelite.api.widgets.WidgetID.GUIDE_PRICE_GROUP_ID;
 import static net.runelite.api.widgets.WidgetID.KEPT_ON_DEATH_GROUP_ID;
+import static net.runelite.api.widgets.WidgetID.KINGDOM_GROUP_ID;
 import static net.runelite.api.widgets.WidgetID.LOOTING_BAG_GROUP_ID;
 import static net.runelite.api.widgets.WidgetID.SEED_BOX_GROUP_ID;
-import static net.runelite.api.widgets.WidgetID.KINGDOM_GROUP_ID;
 import net.runelite.api.widgets.WidgetItem;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.WidgetItemOverlay;
 import net.runelite.client.ui.overlay.components.TextComponent;
 
+@Singleton
 class ItemIdentificationOverlay extends WidgetItemOverlay
 {
-	private final ItemIdentificationConfig config;
+	private final ItemIdentificationPlugin plugin;
 	private final ItemManager itemManager;
 
 	@Inject
-	ItemIdentificationOverlay(ItemIdentificationConfig config, ItemManager itemManager)
+	ItemIdentificationOverlay(ItemIdentificationPlugin plugin, ItemManager itemManager)
 	{
-		this.config = config;
+		this.plugin = plugin;
 		this.itemManager = itemManager;
+
 		showOnInventory();
 		showOnBank();
 		showOnInterfaces(KEPT_ON_DEATH_GROUP_ID, GUIDE_PRICE_GROUP_ID, LOOTING_BAG_GROUP_ID, SEED_BOX_GROUP_ID, KINGDOM_GROUP_ID);
@@ -66,37 +69,37 @@ class ItemIdentificationOverlay extends WidgetItemOverlay
 		switch (iden.type)
 		{
 			case SEED:
-				if (!config.showSeeds())
+				if (!plugin.isShowSeeds())
 				{
 					return;
 				}
 				break;
 			case HERB:
-				if (!config.showHerbs())
+				if (!plugin.isShowHerbs())
 				{
 					return;
 				}
 				break;
 			case SAPLING:
-				if (!config.showSaplings())
+				if (!plugin.isShowSaplings())
 				{
 					return;
 				}
 				break;
 			case ORE:
-				if (!config.showOres())
+				if (!plugin.isShowOres())
 				{
 					return;
 				}
 				break;
 			case GEM:
-				if (!config.showGems())
+				if (!plugin.isShowGems())
 				{
 					return;
 				}
 				break;
 			case POTION:
-				if (!config.showPotions())
+				if (!plugin.isShowPotions())
 				{
 					return;
 				}
@@ -111,8 +114,8 @@ class ItemIdentificationOverlay extends WidgetItemOverlay
 	{
 		final TextComponent textComponent = new TextComponent();
 		textComponent.setPosition(new Point(bounds.x - 1, bounds.y + bounds.height - 1));
-		textComponent.setColor(config.textColor());
-		switch (config.identificationType())
+		textComponent.setColor(plugin.getTextColor());
+		switch (plugin.getIdentificationType())
 		{
 			case SHORT:
 				textComponent.setText(iden.shortName);

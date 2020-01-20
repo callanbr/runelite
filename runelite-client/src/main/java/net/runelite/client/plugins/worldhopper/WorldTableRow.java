@@ -32,6 +32,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import javax.inject.Singleton;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -45,6 +46,7 @@ import net.runelite.client.util.ImageUtil;
 import net.runelite.http.api.worlds.World;
 import net.runelite.http.api.worlds.WorldType;
 
+@Singleton
 class WorldTableRow extends JPanel
 {
 	private static final ImageIcon FLAG_AUS;
@@ -80,7 +82,7 @@ class WorldTableRow extends JPanel
 	private JLabel pingField;
 	private BiConsumer<World, Boolean> onFavorite;
 
-	@Getter
+	@Getter(AccessLevel.PACKAGE)
 	private final World world;
 
 	@Getter(AccessLevel.PACKAGE)
@@ -89,11 +91,9 @@ class WorldTableRow extends JPanel
 	private int ping;
 
 	private Color lastBackground;
-	private boolean current;
 
 	WorldTableRow(World world, boolean current, boolean favorite, Integer ping, Consumer<World> onSelect, BiConsumer<World, Boolean> onFavorite)
 	{
-		this.current = current;
 		this.world = world;
 		this.onFavorite = onFavorite;
 		this.updatedPlayerCount = world.getPlayers();
@@ -201,9 +201,7 @@ class WorldTableRow extends JPanel
 		}
 
 		favoriteMenuOption.addActionListener(e ->
-		{
-			onFavorite.accept(world, !favorite);
-		});
+			onFavorite.accept(world, !favorite));
 	}
 
 	void updatePlayerCount(int playerCount)
@@ -296,7 +294,7 @@ class WorldTableRow extends JPanel
 		{
 			setPing(ping);
 		}
-
+		
 		return column;
 	}
 
